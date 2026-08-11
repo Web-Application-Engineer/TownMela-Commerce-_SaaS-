@@ -16,13 +16,12 @@ import {
   useState,
 } from "react";
 
-import {
-  useTenant,
-} from "@/src/context/TenantContext";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ??
+  "http://localhost:5000";
 
-import {
-  tenantFetch,
-} from "@/src/lib/tenantApi";
+const TENANT_ID =
+  process.env.NEXT_PUBLIC_TENANT_ID ?? "";
 
 /* =========================================================
    TYPES
@@ -80,9 +79,7 @@ const readJsonResponse = async <T,>(
 ========================================================= */
 
 export default function CategoriesPage() {
-  const {
-    selectedTenantId,
-  } = useTenant();
+
 
   const [
     categories,
@@ -125,14 +122,17 @@ export default function CategoriesPage() {
           setErrorMessage("");
 
           const response =
-            await tenantFetch(
-              "/api/categories",
-              {
-                method: "GET",
-                cache: "no-store",
-                signal,
-              }
-            );
+       await fetch(`${API_BASE_URL}/api/categories`, {
+  method: "GET",
+  cache: "no-store",
+  signal,
+  headers: {
+    Accept: "application/json",
+    ...(TENANT_ID && {
+      "X-Tenant-Id": TENANT_ID,
+    }),
+  },
+});
 
           const data =
             await readJsonResponse<CategoriesApiResponse>(
@@ -218,7 +218,7 @@ export default function CategoriesPage() {
           }
         }
       },
-      [selectedTenantId]
+      []
     );
 
   useEffect(() => {

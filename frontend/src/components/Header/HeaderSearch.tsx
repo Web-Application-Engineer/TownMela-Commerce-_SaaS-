@@ -33,44 +33,77 @@ import type {
 } from "./headerTypes";
 
 /* =========================================================
+   LOCAL DEVELOPMENT TENANT FALLBACK
+
+   Public storefront search must NOT use admin tenantFetch.
+
+   On production storefronts, tenant should be resolved by
+   the backend/domain infrastructure.
+
+   On localhost, NEXT_PUBLIC_TENANT_ID can be used as the
+   development tenant fallback.
+========================================================= */
+
+const FALLBACK_TENANT_ID =
+  (
+    process.env
+      .NEXT_PUBLIC_TENANT_ID ??
+    ""
+  ).trim();
+
+/* =========================================================
    HEADER SEARCH
 ========================================================= */
 
 export default function HeaderSearch() {
-  const router = useRouter();
+  const router =
+    useRouter();
 
   const containerRef =
-    useRef<HTMLFormElement>(null);
+    useRef<HTMLFormElement>(
+      null,
+    );
 
   const inputRef =
-    useRef<HTMLInputElement>(null);
+    useRef<HTMLInputElement>(
+      null,
+    );
 
   const [
     searchKeyword,
     setSearchKeyword,
-  ] = useState("");
+  ] =
+    useState("");
 
   const [
     searchSuggestions,
     setSearchSuggestions,
-  ] = useState<
-    SearchSuggestionProduct[]
-  >([]);
+  ] =
+    useState<
+      SearchSuggestionProduct[]
+    >([]);
 
   const [
     isSearchLoading,
     setIsSearchLoading,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     isSearchOpen,
     setIsSearchOpen,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     activeSuggestionIndex,
     setActiveSuggestionIndex,
-  ] = useState(-1);
+  ] =
+    useState(-1);
+
+  /* =======================================================
+     DERIVED VALUES
+  ======================================================= */
 
   const normalizedSearchKeyword =
     searchKeyword.trim();
@@ -82,7 +115,9 @@ export default function HeaderSearch() {
           0,
           6,
         ),
-      [searchSuggestions],
+      [
+        searchSuggestions,
+      ],
     );
 
   /* =======================================================
@@ -91,8 +126,13 @@ export default function HeaderSearch() {
 
   const closeSearchSuggestions =
     useCallback(() => {
-      setIsSearchOpen(false);
-      setActiveSuggestionIndex(-1);
+      setIsSearchOpen(
+        false,
+      );
+
+      setActiveSuggestionIndex(
+        -1,
+      );
     }, []);
 
   /* =======================================================
@@ -105,7 +145,9 @@ export default function HeaderSearch() {
   ) => {
     event?.preventDefault();
 
-    if (!normalizedSearchKeyword) {
+    if (
+      !normalizedSearchKeyword
+    ) {
       closeSearchSuggestions();
 
       inputRef.current?.focus();
@@ -137,7 +179,9 @@ export default function HeaderSearch() {
     );
 
     router.push(
-      getProductHref(product),
+      getProductHref(
+        product,
+      ),
     );
   };
 
@@ -150,20 +194,30 @@ export default function HeaderSearch() {
       KeyboardEvent<HTMLInputElement>,
   ) => {
     if (
-      event.key === "ArrowDown"
+      event.key ===
+      "ArrowDown"
     ) {
       event.preventDefault();
 
       if (
-        !isSearchOpen &&
         visibleSearchSuggestions
-          .length > 0
+          .length === 0
       ) {
-        setIsSearchOpen(true);
+        return;
+      }
+
+      if (
+        !isSearchOpen
+      ) {
+        setIsSearchOpen(
+          true,
+        );
       }
 
       setActiveSuggestionIndex(
-        (currentIndex) =>
+        (
+          currentIndex,
+        ) =>
           Math.min(
             currentIndex + 1,
             visibleSearchSuggestions
@@ -175,12 +229,15 @@ export default function HeaderSearch() {
     }
 
     if (
-      event.key === "ArrowUp"
+      event.key ===
+      "ArrowUp"
     ) {
       event.preventDefault();
 
       setActiveSuggestionIndex(
-        (currentIndex) =>
+        (
+          currentIndex,
+        ) =>
           Math.max(
             currentIndex - 1,
             -1,
@@ -191,7 +248,8 @@ export default function HeaderSearch() {
     }
 
     if (
-      event.key === "Escape"
+      event.key ===
+      "Escape"
     ) {
       closeSearchSuggestions();
 
@@ -199,34 +257,63 @@ export default function HeaderSearch() {
     }
 
     if (
-      event.key === "Enter" &&
-      activeSuggestionIndex >= 0 &&
-      visibleSearchSuggestions[
-        activeSuggestionIndex
-      ]
+      event.key ===
+        "Enter" &&
+      activeSuggestionIndex >=
+        0
     ) {
-      event.preventDefault();
-
-      handleSuggestionSelect(
+      const selectedProduct =
         visibleSearchSuggestions[
           activeSuggestionIndex
-        ],
-      );
+        ];
+
+      if (
+        selectedProduct
+      ) {
+        event.preventDefault();
+
+        handleSuggestionSelect(
+          selectedProduct,
+        );
+      }
     }
   };
 
   /* =======================================================
      LIVE SEARCH API
+
+     IMPORTANT:
+
+     This is a PUBLIC STOREFRONT request.
+
+     Do not use:
+     - admin token
+     - selectedTenantId
+     - tenantFetch()
+
+     Local development can send NEXT_PUBLIC_TENANT_ID.
   ======================================================= */
 
   useEffect(() => {
     if (
-      normalizedSearchKeyword.length <
-      2
+      normalizedSearchKeyword
+        .length < 2
     ) {
-      setSearchSuggestions([]);
-      setIsSearchLoading(false);
-      setActiveSuggestionIndex(-1);
+      setSearchSuggestions(
+        [],
+      );
+
+      setIsSearchLoading(
+        false,
+      );
+
+      setActiveSuggestionIndex(
+        -1,
+      );
+
+      setIsSearchOpen(
+        false,
+      );
 
       return;
     }
@@ -238,7 +325,30 @@ export default function HeaderSearch() {
       window.setTimeout(
         async () => {
           try {
-            setIsSearchLoading(true);
+            setIsSearchLoading(
+              true,
+            );
+
+            const headers:
+              HeadersInit = {
+              Accept:
+                "application/json",
+            };
+
+            /*
+             * Development fallback only.
+             *
+             * This lets localhost resolve the configured
+             * development tenant without using admin storage.
+             */
+            if (
+              FALLBACK_TENANT_ID
+            ) {
+              headers[
+                "X-Tenant-Id"
+              ] =
+                FALLBACK_TENANT_ID;
+            }
 
             const response =
               await fetch(
@@ -246,31 +356,41 @@ export default function HeaderSearch() {
                   normalizedSearchKeyword,
                 )}`,
                 {
-                  method: "GET",
-                  cache: "no-store",
+                  method:
+                    "GET",
+
+                  cache:
+                    "no-store",
+
+                  credentials:
+                    "include",
 
                   signal:
                     abortController.signal,
 
-                  headers: {
-                    Accept:
-                      "application/json",
-
-                    "Content-Type":
-                      "application/json",
-                  },
+                  headers,
                 },
               );
 
-            const data:
-              SearchProductsResponse =
-              await response.json();
+            const data =
+              (await response
+                .json()
+                .catch(
+                  () => null,
+                )) as
+                | SearchProductsResponse
+                | null;
 
-            if (!response.ok) {
+            if (
+              !response.ok
+            ) {
               const message =
-                Array.isArray(data)
-                  ? undefined
-                  : data.message;
+                data &&
+                !Array.isArray(
+                  data,
+                )
+                  ? data.message
+                  : undefined;
 
               throw new Error(
                 message ||
@@ -279,9 +399,12 @@ export default function HeaderSearch() {
             }
 
             const productList =
-              Array.isArray(data)
+              Array.isArray(
+                data,
+              )
                 ? data
-                : Array.isArray(
+                : data &&
+                    Array.isArray(
                       data.products,
                     )
                   ? data.products
@@ -291,12 +414,16 @@ export default function HeaderSearch() {
               productList,
             );
 
-            setIsSearchOpen(true);
+            setIsSearchOpen(
+              true,
+            );
 
             setActiveSuggestionIndex(
               -1,
             );
-          } catch (error) {
+          } catch (
+            error
+          ) {
             if (
               error instanceof
                 DOMException &&
@@ -315,14 +442,17 @@ export default function HeaderSearch() {
               [],
             );
 
-            setIsSearchOpen(true);
+            setIsSearchOpen(
+              true,
+            );
 
             setActiveSuggestionIndex(
               -1,
             );
           } finally {
             if (
-              !abortController.signal
+              !abortController
+                .signal
                 .aborted
             ) {
               setIsSearchLoading(
@@ -351,7 +481,8 @@ export default function HeaderSearch() {
 
   useEffect(() => {
     const handleOutsideClick = (
-      event: MouseEvent,
+      event:
+        MouseEvent,
     ) => {
       const clickedNode =
         event.target as Node;
@@ -381,9 +512,15 @@ export default function HeaderSearch() {
     closeSearchSuggestions,
   ]);
 
+  /* =======================================================
+     UI
+  ======================================================= */
+
   return (
     <form
-      ref={containerRef}
+      ref={
+        containerRef
+      }
       onSubmit={
         handleSearchSubmit
       }
@@ -400,31 +537,55 @@ export default function HeaderSearch() {
         pr-1.5
       "
     >
+      {/* =================================================
+          SEARCH INPUT
+      ================================================= */}
+
       <input
-        ref={inputRef}
+        ref={
+          inputRef
+        }
         type="search"
-        value={searchKeyword}
-        onChange={(event) => {
+        value={
+          searchKeyword
+        }
+        onChange={(
+          event,
+        ) => {
           const nextValue =
-            event.target.value;
+            event.target
+              .value;
 
           setSearchKeyword(
             nextValue,
           );
 
+          setActiveSuggestionIndex(
+            -1,
+          );
+
           if (
-            nextValue.trim().length >=
-            2
+            nextValue
+              .trim()
+              .length >= 2
           ) {
-            setIsSearchOpen(true);
+            setIsSearchOpen(
+              true,
+            );
+          } else {
+            setIsSearchOpen(
+              false,
+            );
           }
         }}
         onFocus={() => {
           if (
-            normalizedSearchKeyword.length >=
-            2
+            normalizedSearchKeyword
+              .length >= 2
           ) {
-            setIsSearchOpen(true);
+            setIsSearchOpen(
+              true,
+            );
           }
         }}
         onKeyDown={
@@ -451,6 +612,10 @@ export default function HeaderSearch() {
         "
       />
 
+      {/* =================================================
+          SEARCH BUTTON
+      ================================================= */}
+
       <button
         type="submit"
         disabled={
@@ -472,12 +637,18 @@ export default function HeaderSearch() {
           disabled:opacity-50
         "
       >
-        <Search size={20} />
+        <Search
+          size={20}
+        />
       </button>
 
+      {/* =================================================
+          SEARCH SUGGESTIONS
+      ================================================= */}
+
       {isSearchOpen &&
-        normalizedSearchKeyword.length >=
-          2 && (
+        normalizedSearchKeyword
+          .length >= 2 && (
           <div
             id="townmela-search-suggestions"
             role="listbox"
@@ -497,21 +668,32 @@ export default function HeaderSearch() {
               shadow-2xl
             "
           >
+            {/* =============================================
+                SUGGESTION HEADER
+            ============================================= */}
+
             <div className="border-b border-gray-100 px-4 py-3">
               <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-gray-400">
                 Product Suggestions
               </p>
             </div>
 
+            {/* =============================================
+                LOADING
+            ============================================= */}
+
             {isSearchLoading ? (
               <div className="flex items-center gap-3 px-4 py-5 text-sm font-semibold text-gray-500">
                 <span className="h-5 w-5 animate-spin rounded-full border-2 border-orange-200 border-t-[#FF6900]" />
 
-                Searching
-                products...
+                Searching products...
               </div>
             ) : visibleSearchSuggestions
                 .length > 0 ? (
+              /* ===========================================
+                  RESULTS
+              =========================================== */
+
               <div className="max-h-[360px] overflow-y-auto py-1">
                 {visibleSearchSuggestions.map(
                   (
@@ -559,6 +741,8 @@ export default function HeaderSearch() {
                           }
                         `}
                       >
+                        {/* PRODUCT IMAGE */}
+
                         <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
                           {product.image ? (
                             <Image
@@ -578,6 +762,8 @@ export default function HeaderSearch() {
                             </div>
                           )}
                         </div>
+
+                        {/* PRODUCT INFO */}
 
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-extrabold text-[#0B1F3A]">
@@ -620,11 +806,19 @@ export default function HeaderSearch() {
                 )}
               </div>
             ) : (
+              /* ===========================================
+                  EMPTY RESULT
+              =========================================== */
+
               <div className="px-4 py-5 text-sm font-semibold text-gray-500">
                 No matching products
                 found.
               </div>
             )}
+
+            {/* =============================================
+                VIEW ALL RESULTS
+            ============================================= */}
 
             <button
               type="button"
@@ -641,6 +835,7 @@ export default function HeaderSearch() {
                 bg-orange-50
                 px-4
                 py-3
+                text-left
                 text-sm
                 font-extrabold
                 text-[#FF6900]
@@ -648,9 +843,8 @@ export default function HeaderSearch() {
                 hover:bg-orange-100
               "
             >
-              <span>
-                View all results for
-                “
+              <span className="min-w-0 truncate">
+                View all results for “
                 {
                   normalizedSearchKeyword
                 }
@@ -659,6 +853,7 @@ export default function HeaderSearch() {
 
               <ChevronRight
                 size={17}
+                className="ml-3 shrink-0"
               />
             </button>
           </div>

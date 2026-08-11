@@ -12,9 +12,21 @@ import {
    API
 ========================================================= */
 
-const API_BASE_URL =
+const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:5000";
+  "http://localhost:5000"
+).replace(/\/$/, "");
+
+/*
+ * Local development fallback only.
+ *
+ * Live tenant domains should be resolved by the backend
+ * from the current domain.
+ */
+const DEFAULT_TENANT_ID = (
+  process.env.NEXT_PUBLIC_TENANT_ID ??
+  ""
+).trim();
 
 /* =========================================================
    TYPES
@@ -29,20 +41,27 @@ export type HeaderMenuItem = {
 
 export type HeaderSettings = {
   businessName: string;
+
   logo: string;
+
   mobileLogo: string;
 
   phone: string;
+
   email: string;
 
   announcementText: string;
+
   announcementEnabled: boolean;
 
   menus: HeaderMenuItem[];
 
   searchEnabled: boolean;
+
   wishlistEnabled: boolean;
+
   accountEnabled: boolean;
+
   cartEnabled: boolean;
 
   isActive: boolean;
@@ -50,37 +69,49 @@ export type HeaderSettings = {
 
 type HeaderSettingsResponse = {
   success: boolean;
+
   message?: string;
+
   data?: Partial<HeaderSettings>;
 };
 
 type HeaderSettingsContextValue = {
   settings: HeaderSettings;
+
   isLoading: boolean;
-  refreshHeaderSettings: () => Promise<void>;
+
+  refreshHeaderSettings:
+    () => Promise<void>;
 };
 
 /* =========================================================
    DEFAULTS
 ========================================================= */
 
-const defaultHeaderSettings: HeaderSettings = {
+const defaultHeaderSettings:
+  HeaderSettings = {
   businessName: "TownMela",
 
   logo: "",
+
   mobileLogo: "",
 
   phone: "",
+
   email: "",
 
   announcementText: "",
+
   announcementEnabled: false,
 
   menus: [],
 
   searchEnabled: true,
+
   wishlistEnabled: true,
+
   accountEnabled: true,
+
   cartEnabled: true,
 
   isActive: true,
@@ -127,19 +158,39 @@ export function HeaderSettingsProvider({
       try {
         setIsLoading(true);
 
+        const headers:
+          HeadersInit = {
+          Accept:
+            "application/json",
+        };
+
+        /*
+         * On localhost the backend cannot resolve a custom
+         * tenant domain, so NEXT_PUBLIC_TENANT_ID is used.
+         *
+         * On live tenant domains this header can stay absent
+         * and resolvePublicTenant can use the current host.
+         */
+        if (DEFAULT_TENANT_ID) {
+          headers[
+            "X-Tenant-Id"
+          ] =
+            DEFAULT_TENANT_ID;
+        }
+
         const response =
           await fetch(
             `${API_BASE_URL}/api/header-settings/public`,
             {
               method: "GET",
 
-              headers: {
-                Accept:
-                  "application/json",
-              },
+              headers,
 
               cache:
                 "no-store",
+
+              credentials:
+                "include",
             },
           );
 
@@ -163,10 +214,12 @@ export function HeaderSettingsProvider({
         }
 
         const data =
-          payload.data || {};
+          payload.data ||
+          {};
 
         setSettings({
           ...defaultHeaderSettings,
+
           ...data,
 
           menus:
@@ -183,14 +236,16 @@ export function HeaderSettingsProvider({
         );
 
         /*
-         * Keep safe fallback header
-         * if API cannot be loaded.
+         * Keep a safe fallback if the tenant header
+         * configuration cannot be loaded.
          */
         setSettings(
           defaultHeaderSettings,
         );
       } finally {
-        setIsLoading(false);
+        setIsLoading(
+          false,
+        );
       }
     }, []);
 
@@ -205,7 +260,7 @@ export function HeaderSettingsProvider({
   ]);
 
   /* =======================================================
-     REFRESH AFTER ADMIN HEADER UPDATE
+     REFRESH AFTER HEADER MANAGEMENT UPDATE
   ======================================================= */
 
   useEffect(() => {
@@ -228,6 +283,10 @@ export function HeaderSettingsProvider({
   }, [
     refreshHeaderSettings,
   ]);
+
+  /* =======================================================
+     PROVIDER
+  ======================================================= */
 
   return (
     <HeaderSettingsContext.Provider

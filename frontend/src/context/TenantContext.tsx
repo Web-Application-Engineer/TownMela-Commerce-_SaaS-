@@ -8,12 +8,23 @@ import {
   useMemo,
   useState,
 } from "react";
-import { useRouter } from "next/navigation";
+
+import {
+  useRouter,
+} from "next/navigation";
+
+/* =========================================================
+   API CONFIGURATION
+========================================================= */
 
 const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_URL ??
   "http://localhost:5000"
 ).replace(/\/$/, "");
+
+/* =========================================================
+   TYPES
+========================================================= */
 
 type AdminUser = {
   _id: string;
@@ -28,12 +39,25 @@ type AdminUser = {
 export type TenantSummary = {
   _id: string;
   tenantId?: string;
+
   businessName?: string;
   storeName?: string;
   tenantCode?: string;
+
   ownerName?: string;
   ownerEmail?: string;
+
+  branding?: {
+    logo?: string;
+    favicon?: string;
+    primaryColor?: string;
+    secondaryColor?: string;
+    storeTitle?: string;
+    storeTagline?: string;
+  };
+
   status?: string;
+
   subscription?: {
     plan?: string;
     status?: string;
@@ -45,30 +69,68 @@ export type TenantSummary = {
 
 type TenantContextValue = {
   tenants: TenantSummary[];
-  selectedTenant: TenantSummary | null;
+
+  selectedTenant:
+    | TenantSummary
+    | null;
+
   selectedTenantId: string;
+
   loadingTenants: boolean;
+
   tenantError: string;
+
   canSwitchTenant: boolean;
-  selectTenant: (tenantId: string) => void;
-  refreshTenants: () => Promise<void>;
-  clearTenantSelection: () => void;
+
+  selectTenant: (
+    tenantId: string,
+  ) => void;
+
+  refreshTenants:
+    () => Promise<void>;
+
+  clearTenantSelection:
+    () => void;
 };
 
+/* =========================================================
+   CONTEXT
+========================================================= */
+
 const TenantContext =
-  createContext<TenantContextValue | null>(
-    null,
-  );
+  createContext<
+    TenantContextValue | null
+  >(null);
+
+/* =========================================================
+   STORAGE HELPERS
+========================================================= */
 
 const getAdminToken = () => {
-  if (typeof window === "undefined") {
+  if (
+    typeof window ===
+    "undefined"
+  ) {
     return "";
   }
 
   return (
     localStorage.getItem(
       "townmelaAdminToken",
-    ) || ""
+    ) ||
+    localStorage.getItem(
+      "accessToken",
+    ) ||
+    localStorage.getItem(
+      "token",
+    ) ||
+    localStorage.getItem(
+      "authToken",
+    ) ||
+    localStorage.getItem(
+      "jwt",
+    ) ||
+    ""
   );
 };
 
@@ -79,44 +141,57 @@ const saveTenantId = (
     "tenantId",
     tenantId,
   );
+
   localStorage.setItem(
     "selectedTenantId",
     tenantId,
   );
+
   localStorage.setItem(
     "activeTenantId",
     tenantId,
   );
 };
 
-const removeSwitchableTenantIds = () => {
-  localStorage.removeItem(
-    "selectedTenantId",
-  );
-  localStorage.removeItem(
-    "activeTenantId",
-  );
-};
+const removeSwitchableTenantIds =
+  () => {
+    localStorage.removeItem(
+      "selectedTenantId",
+    );
 
-const clearAdminSession = () => {
-  [
-    "townmelaAdminToken",
-    "townmelaAdminUser",
-    "accessToken",
-    "token",
-    "authToken",
-    "jwt",
-  ].forEach((key) =>
-    localStorage.removeItem(key),
-  );
-};
+    localStorage.removeItem(
+      "activeTenantId",
+    );
+  };
+
+const clearAdminSession =
+  () => {
+    [
+      "townmelaAdminToken",
+      "townmelaAdminUser",
+      "accessToken",
+      "token",
+      "authToken",
+      "jwt",
+    ].forEach(
+      (key) =>
+        localStorage.removeItem(
+          key,
+        ),
+    );
+  };
+
+/* =========================================================
+   RESPONSE HELPERS
+========================================================= */
 
 const extractTenants = (
   payload: unknown,
 ): TenantSummary[] => {
   if (
     !payload ||
-    typeof payload !== "object"
+    typeof payload !==
+      "object"
   ) {
     return [];
   }
@@ -127,14 +202,21 @@ const extractTenants = (
       unknown
     >;
 
-  if (Array.isArray(value.tenants)) {
+  if (
+    Array.isArray(
+      value.tenants,
+    )
+  ) {
     return value.tenants as TenantSummary[];
   }
 
   if (
     value.data &&
-    typeof value.data === "object" &&
-    !Array.isArray(value.data)
+    typeof value.data ===
+      "object" &&
+    !Array.isArray(
+      value.data,
+    )
   ) {
     const data =
       value.data as Record<
@@ -143,7 +225,9 @@ const extractTenants = (
       >;
 
     if (
-      Array.isArray(data.tenants)
+      Array.isArray(
+        data.tenants,
+      )
     ) {
       return data.tenants as TenantSummary[];
     }
@@ -152,19 +236,78 @@ const extractTenants = (
   return [];
 };
 
+const extractTenant = (
+  payload: unknown,
+): TenantSummary | null => {
+  if (
+    !payload ||
+    typeof payload !==
+      "object"
+  ) {
+    return null;
+  }
+
+  const value =
+    payload as Record<
+      string,
+      unknown
+    >;
+
+  if (
+    value.data &&
+    typeof value.data ===
+      "object" &&
+    !Array.isArray(
+      value.data,
+    )
+  ) {
+    const data =
+      value.data as Record<
+        string,
+        unknown
+      >;
+
+    if (
+      data.tenant &&
+      typeof data.tenant ===
+        "object" &&
+      !Array.isArray(
+        data.tenant,
+      )
+    ) {
+      return data.tenant as TenantSummary;
+    }
+  }
+
+  if (
+    value.tenant &&
+    typeof value.tenant ===
+      "object" &&
+    !Array.isArray(
+      value.tenant,
+    )
+  ) {
+    return value.tenant as TenantSummary;
+  }
+
+  return null;
+};
+
 const getApiMessage = (
   payload: unknown,
   fallback: string,
 ) => {
   if (
     payload &&
-    typeof payload === "object" &&
+    typeof payload ===
+      "object" &&
     "message" in payload &&
     typeof (
       payload as {
         message?: unknown;
       }
-    ).message === "string"
+    ).message ===
+      "string"
   ) {
     return (
       payload as {
@@ -176,55 +319,170 @@ const getApiMessage = (
   return fallback;
 };
 
+/* =========================================================
+   TENANT PROVIDER
+========================================================= */
+
 export function TenantProvider({
   children,
   adminUser,
 }: {
-  children: React.ReactNode;
-  adminUser: AdminUser;
+  children:
+    React.ReactNode;
+
+  adminUser:
+    AdminUser;
 }) {
-  const router = useRouter();
+  const router =
+    useRouter();
+
   const isSuperAdmin =
-    adminUser.role === "superadmin";
+    adminUser.role ===
+    "superadmin";
 
-  const fixedTenantId = String(
-    adminUser.tenantId ||
-      adminUser.tenant ||
-      "",
-  ).trim();
+  const fixedTenantId =
+    String(
+      adminUser.tenantId ||
+        adminUser.tenant ||
+        "",
+    ).trim();
 
-  const [tenants, setTenants] =
-    useState<TenantSummary[]>([]);
+  const [
+    tenants,
+    setTenants,
+  ] =
+    useState<
+      TenantSummary[]
+    >([]);
 
   const [
     selectedTenantId,
     setSelectedTenantId,
-  ] = useState("");
+  ] =
+    useState("");
 
   const [
     loadingTenants,
     setLoadingTenants,
-  ] = useState(true);
+  ] =
+    useState(true);
 
   const [
     tenantError,
     setTenantError,
-  ] = useState("");
+  ] =
+    useState("");
+
+  /* =======================================================
+     LOAD TENANT CONTEXT
+  ======================================================= */
 
   const refreshTenants =
     useCallback(async () => {
       try {
-        setLoadingTenants(true);
-        setTenantError("");
+        setLoadingTenants(
+          true,
+        );
 
-        /*
-         * Tenant admins are permanently locked to the tenant
-         * stored in their authenticated admin session.
-         */
+        setTenantError(
+          "",
+        );
+
+        const token =
+          getAdminToken();
+
+        if (!token) {
+          clearAdminSession();
+
+          router.replace(
+            "/login",
+          );
+
+          return;
+        }
+
+        /* =================================================
+           TENANT ADMIN
+
+           Tenant Admin cannot switch tenant.
+           Load the REAL assigned tenant from database.
+        ================================================= */
+
         if (!isSuperAdmin) {
-          if (!fixedTenantId) {
+          if (
+            !fixedTenantId
+          ) {
             throw new Error(
               "No tenant is assigned to this tenant admin account.",
+            );
+          }
+
+          const response =
+            await fetch(
+              `${API_BASE_URL}/api/tenants/${fixedTenantId}`,
+              {
+                method:
+                  "GET",
+
+                cache:
+                  "no-store",
+
+                credentials:
+                  "include",
+
+                headers: {
+                  Accept:
+                    "application/json",
+
+                  Authorization:
+                    `Bearer ${token}`,
+                },
+              },
+            );
+
+          const payload =
+            await response
+              .json()
+              .catch(
+                () => null,
+              );
+
+          if (
+            response.status ===
+              401 ||
+            response.status ===
+              403
+          ) {
+            clearAdminSession();
+
+            router.replace(
+              "/login",
+            );
+
+            return;
+          }
+
+          if (
+            !response.ok
+          ) {
+            throw new Error(
+              getApiMessage(
+                payload,
+                "Tenant information could not be loaded.",
+              ),
+            );
+          }
+
+          const tenant =
+            extractTenant(
+              payload,
+            );
+
+          if (
+            !tenant?._id
+          ) {
+            throw new Error(
+              "Tenant information was not found.",
             );
           }
 
@@ -237,43 +495,35 @@ export function TenantProvider({
           );
 
           setTenants([
-            {
-              _id: fixedTenantId,
-              tenantId:
-                fixedTenantId,
-              businessName:
-                adminUser.name,
-              ownerName:
-                adminUser.name,
-              ownerEmail:
-                adminUser.email,
-              status: "active",
-            },
+            tenant,
           ]);
 
           return;
         }
 
-        const token =
-          getAdminToken();
+        /* =================================================
+           SUPER ADMIN
 
-        if (!token) {
-          clearAdminSession();
-          router.replace("/login");
-          return;
-        }
+           SuperAdmin can load and switch active tenants.
+        ================================================= */
 
         const response =
           await fetch(
             `${API_BASE_URL}/api/tenants?limit=100&status=active`,
             {
-              method: "GET",
-              cache: "no-store",
+              method:
+                "GET",
+
+              cache:
+                "no-store",
+
               credentials:
                 "include",
+
               headers: {
                 Accept:
                   "application/json",
+
                 Authorization:
                   `Bearer ${token}`,
               },
@@ -288,15 +538,23 @@ export function TenantProvider({
             );
 
         if (
-          response.status === 401 ||
-          response.status === 403
+          response.status ===
+            401 ||
+          response.status ===
+            403
         ) {
           clearAdminSession();
-          router.replace("/login");
+
+          router.replace(
+            "/login",
+          );
+
           return;
         }
 
-        if (!response.ok) {
+        if (
+          !response.ok
+        ) {
           throw new Error(
             getApiMessage(
               payload,
@@ -317,7 +575,8 @@ export function TenantProvider({
                 "active",
               ].includes(
                 tenant.subscription
-                  ?.status ?? "",
+                  ?.status ??
+                  "",
               ),
           );
 
@@ -355,17 +614,21 @@ export function TenantProvider({
           saveTenantId(
             storedTenantId,
           );
+
           setSelectedTenantId(
             storedTenantId,
           );
+
           return;
         }
 
         if (
-          activeTenants.length === 1
+          activeTenants.length ===
+          1
         ) {
           const tenantId =
-            activeTenants[0]._id ||
+            activeTenants[0]
+              ._id ||
             activeTenants[0]
               .tenantId ||
             "";
@@ -374,14 +637,17 @@ export function TenantProvider({
             saveTenantId(
               tenantId,
             );
+
             setSelectedTenantId(
               tenantId,
             );
+
             return;
           }
         }
 
         removeSwitchableTenantIds();
+
         setSelectedTenantId(
           "",
         );
@@ -391,12 +657,17 @@ export function TenantProvider({
           error,
         );
 
-        setTenants([]);
+        setTenants(
+          [],
+        );
+
         setSelectedTenantId(
           "",
         );
+
         setTenantError(
-          error instanceof Error
+          error instanceof
+            Error
             ? error.message
             : "Unable to load tenants.",
         );
@@ -406,8 +677,6 @@ export function TenantProvider({
         );
       }
     }, [
-      adminUser.email,
-      adminUser.name,
       fixedTenantId,
       isSuperAdmin,
       router,
@@ -415,19 +684,34 @@ export function TenantProvider({
 
   useEffect(() => {
     void refreshTenants();
-  }, [refreshTenants]);
+  }, [
+    refreshTenants,
+  ]);
+
+  /* =======================================================
+     SELECT TENANT
+  ======================================================= */
 
   const selectTenant =
     useCallback(
-      (tenantId: string) => {
-        /*
-         * A tenant admin cannot change the tenant context.
-         */
-        if (!isSuperAdmin) {
-          if (fixedTenantId) {
+      (
+        tenantId:
+          string,
+      ) => {
+        /* ===============================================
+           TENANT ADMIN
+        =============================================== */
+
+        if (
+          !isSuperAdmin
+        ) {
+          if (
+            fixedTenantId
+          ) {
             saveTenantId(
               fixedTenantId,
             );
+
             setSelectedTenantId(
               fixedTenantId,
             );
@@ -436,6 +720,10 @@ export function TenantProvider({
           return;
         }
 
+        /* ===============================================
+           SUPER ADMIN
+        =============================================== */
+
         const normalizedTenantId =
           tenantId.trim();
 
@@ -443,6 +731,7 @@ export function TenantProvider({
           !normalizedTenantId
         ) {
           removeSwitchableTenantIds();
+
           setSelectedTenantId(
             "",
           );
@@ -452,7 +741,8 @@ export function TenantProvider({
               "tenant-changed",
               {
                 detail: {
-                  tenantId: "",
+                  tenantId:
+                    "",
                 },
               },
             ),
@@ -471,13 +761,16 @@ export function TenantProvider({
               normalizedTenantId,
           );
 
-        if (!isKnownTenant) {
+        if (
+          !isKnownTenant
+        ) {
           return;
         }
 
         saveTenantId(
           normalizedTenantId,
         );
+
         setSelectedTenantId(
           normalizedTenantId,
         );
@@ -501,15 +794,27 @@ export function TenantProvider({
       ],
     );
 
+  /* =======================================================
+     CLEAR TENANT
+  ======================================================= */
+
   const clearTenantSelection =
     useCallback(() => {
-      if (isSuperAdmin) {
-        selectTenant("");
+      if (
+        isSuperAdmin
+      ) {
+        selectTenant(
+          "",
+        );
       }
     }, [
       isSuperAdmin,
       selectTenant,
     ]);
+
+  /* =======================================================
+     SELECTED TENANT
+  ======================================================= */
 
   const selectedTenant =
     useMemo(
@@ -528,18 +833,32 @@ export function TenantProvider({
       ],
     );
 
+  /* =======================================================
+     CONTEXT VALUE
+  ======================================================= */
+
   const contextValue =
-    useMemo<TenantContextValue>(
+    useMemo<
+      TenantContextValue
+    >(
       () => ({
         tenants,
+
         selectedTenant,
+
         selectedTenantId,
+
         loadingTenants,
+
         tenantError,
+
         canSwitchTenant:
           isSuperAdmin,
+
         selectTenant,
+
         refreshTenants,
+
         clearTenantSelection,
       }),
       [
@@ -557,12 +876,18 @@ export function TenantProvider({
 
   return (
     <TenantContext.Provider
-      value={contextValue}
+      value={
+        contextValue
+      }
     >
       {children}
     </TenantContext.Provider>
   );
 }
+
+/* =========================================================
+   USE TENANT
+========================================================= */
 
 export function useTenant() {
   const context =

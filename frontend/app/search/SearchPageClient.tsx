@@ -26,84 +26,161 @@ import type {
 ========================================================= */
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:5000";
+  (
+    process.env.NEXT_PUBLIC_API_URL ??
+    "http://localhost:5000"
+  ).replace(/\/$/, "");
+
+/* =========================================================
+   TENANT CONFIGURATION
+
+   Localhost development:
+   NEXT_PUBLIC_TENANT_ID will be sent as X-Tenant-Id.
+
+   Live storefront:
+   Public tenant resolution can use the current tenant domain.
+========================================================= */
+
+const TENANT_ID =
+  (
+    process.env.NEXT_PUBLIC_TENANT_ID ??
+    ""
+  ).trim();
 
 /* =========================================================
    SEARCH PAGE
 ========================================================= */
 
-export default function SearchPage() {
+export default function SearchPageClient() {
   const searchParams =
     useSearchParams();
 
   const keyword =
-    searchParams.get("q")?.trim() ??
+    searchParams
+      .get("q")
+      ?.trim() ??
     "";
 
   const [
     products,
     setProducts,
-  ] = useState<Product[]>([]);
+  ] =
+    useState<Product[]>([]);
 
   const [
     isLoading,
     setIsLoading,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     errorMessage,
     setErrorMessage,
-  ] = useState("");
+  ] =
+    useState("");
 
   /* =======================================================
      LOAD SEARCH RESULTS
   ======================================================= */
 
   useEffect(() => {
-    let isComponentActive = true;
+    const abortController =
+      new AbortController();
+
+    let isComponentActive =
+      true;
 
     const loadSearchResults =
       async () => {
         if (!keyword) {
-          setProducts([]);
-          setErrorMessage("");
-          setIsLoading(false);
+          setProducts(
+            [],
+          );
+
+          setErrorMessage(
+            "",
+          );
+
+          setIsLoading(
+            false,
+          );
 
           return;
         }
 
         try {
-          setIsLoading(true);
-          setErrorMessage("");
-
-          const response = await fetch(
-            `${API_BASE_URL}/api/products/search?keyword=${encodeURIComponent(
-              keyword,
-            )}`,
-            {
-              method: "GET",
-              cache: "no-store",
-
-              headers: {
-                Accept:
-                  "application/json",
-
-                "Content-Type":
-                  "application/json",
-              },
-            },
+          setIsLoading(
+            true,
           );
 
-          const data:
-            ProductsApiResponse =
-            await response.json();
+          setErrorMessage(
+            "",
+          );
 
-          if (!response.ok) {
+          /* ===============================================
+             PUBLIC SEARCH HEADERS
+          =============================================== */
+
+          const headers:
+            HeadersInit = {
+            Accept:
+              "application/json",
+          };
+
+          /*
+           * Local development tenant fallback.
+           *
+           * Public storefront search should not depend on
+           * admin authentication or selectedTenantId.
+           */
+          if (TENANT_ID) {
+            headers[
+              "X-Tenant-Id"
+            ] =
+              TENANT_ID;
+          }
+
+          const response =
+            await fetch(
+              `${API_BASE_URL}/api/products/search?keyword=${encodeURIComponent(
+                keyword,
+              )}`,
+              {
+                method:
+                  "GET",
+
+                cache:
+                  "no-store",
+
+                credentials:
+                  "include",
+
+                signal:
+                  abortController.signal,
+
+                headers,
+              },
+            );
+
+          const data =
+            (await response
+              .json()
+              .catch(
+                () => null,
+              )) as
+              | ProductsApiResponse
+              | null;
+
+          if (
+            !response.ok
+          ) {
             const apiMessage =
-              Array.isArray(data)
-                ? undefined
-                : data.message;
+              data &&
+              !Array.isArray(
+                data,
+              )
+                ? data.message
+                : undefined;
 
             throw new Error(
               apiMessage ||
@@ -112,35 +189,63 @@ export default function SearchPage() {
           }
 
           const productList =
-            Array.isArray(data)
+            Array.isArray(
+              data,
+            )
               ? data
-              : Array.isArray(
+              : data &&
+                  Array.isArray(
                     data.products,
                   )
                 ? data.products
                 : [];
 
-          if (isComponentActive) {
-            setProducts(productList);
+          if (
+            isComponentActive
+          ) {
+            setProducts(
+              productList,
+            );
           }
         } catch (error) {
+          if (
+            error instanceof
+              DOMException &&
+            error.name ===
+              "AbortError"
+          ) {
+            return;
+          }
+
           console.error(
             "Search results loading error:",
             error,
           );
 
-          if (isComponentActive) {
-            setProducts([]);
+          if (
+            isComponentActive
+          ) {
+            setProducts(
+              [],
+            );
 
             setErrorMessage(
-              error instanceof Error
+              error instanceof
+                Error
                 ? error.message
                 : "Search results could not be loaded.",
             );
           }
         } finally {
-          if (isComponentActive) {
-            setIsLoading(false);
+          if (
+            isComponentActive &&
+            !abortController
+              .signal
+              .aborted
+          ) {
+            setIsLoading(
+              false,
+            );
           }
         }
       };
@@ -148,9 +253,14 @@ export default function SearchPage() {
     void loadSearchResults();
 
     return () => {
-      isComponentActive = false;
+      isComponentActive =
+        false;
+
+      abortController.abort();
     };
-  }, [keyword]);
+  }, [
+    keyword,
+  ]);
 
   /* =======================================================
      LOADING UI
@@ -180,9 +290,14 @@ export default function SearchPage() {
                 {Array.from({
                   length: 8,
                 }).map(
-                  (_, index) => (
+                  (
+                    _,
+                    index,
+                  ) => (
                     <div
-                      key={index}
+                      key={
+                        index
+                      }
                       className="animate-pulse rounded-2xl border border-gray-200 bg-white p-3"
                     >
                       <div className="aspect-[4/4.2] rounded-[5px] bg-gray-200" />
@@ -216,13 +331,14 @@ export default function SearchPage() {
           <div className="mx-auto w-full max-w-[1450px]">
             <div className="rounded-2xl border border-red-200 bg-white p-8 text-center shadow-sm">
               <p className="font-bold text-red-600">
-                {errorMessage}
+                {
+                  errorMessage
+                }
               </p>
 
               <p className="mt-2 text-sm text-red-500">
-                Please make sure the
-                TownMela backend server
-                is running.
+                Search results could not
+                be loaded.
               </p>
             </div>
           </div>
@@ -239,7 +355,9 @@ export default function SearchPage() {
     <main className="min-h-screen w-full bg-[#F7F8FA]">
       <section className="w-full px-3 py-6 sm:px-4 lg:px-5 lg:py-8">
         <div className="mx-auto w-full max-w-[1450px]">
-          {/* Page Header */}
+          {/* =================================================
+              PAGE HEADER
+          ================================================= */}
 
           <div className="mb-5 flex w-full flex-nowrap items-center justify-between gap-3 overflow-x-auto">
             <div className="flex shrink-0 flex-nowrap items-center gap-2 whitespace-nowrap">
@@ -258,21 +376,30 @@ export default function SearchPage() {
 
             <div className="shrink-0 whitespace-nowrap rounded-full border border-orange-500 bg-[#4C5B6F] px-3 py-1.5 text-xs font-bold tracking-[0.14em] text-white">
               <span className="tabular-nums">
-                {products.length}
+                {
+                  products.length
+                }
               </span>{" "}
-              {products.length === 1
+              {products.length ===
+              1
                 ? "Product"
                 : "Products"}
             </div>
           </div>
 
-          {/* Search Summary */}
+          {/* =================================================
+              SEARCH SUMMARY
+          ================================================= */}
 
           <div className="mb-4 overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm">
             <div className="flex flex-col gap-3 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <div className="flex items-start gap-3">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-orange-50 text-[#FF6900]">
-                  <Search size={20} />
+                  <Search
+                    size={
+                      20
+                    }
+                  />
                 </div>
 
                 <div>
@@ -282,16 +409,21 @@ export default function SearchPage() {
 
                   {keyword ? (
                     <p className="mt-1 text-sm text-gray-500">
-                      Showing results for{" "}
+                      Showing results
+                      for{" "}
                       <span className="font-extrabold text-[#FF6900]">
-                        “{keyword}”
+                        “
+                        {
+                          keyword
+                        }
+                        ”
                       </span>
                     </p>
                   ) : (
                     <p className="mt-1 text-sm text-gray-500">
-                      Enter a product name
-                      in the search box
-                      above.
+                      Enter a product
+                      name in the search
+                      box above.
                     </p>
                   )}
                 </div>
@@ -299,18 +431,27 @@ export default function SearchPage() {
 
               {keyword && (
                 <span className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-600">
-                  {products.length} results
+                  {
+                    products.length
+                  }{" "}
+                  results
                 </span>
               )}
             </div>
           </div>
 
-          {/* Search Results */}
+          {/* =================================================
+              SEARCH RESULTS
+          ================================================= */}
 
           {!keyword ? (
             <div className="flex min-h-[380px] flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-white px-5 py-12 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-50 text-[#FF6900]">
-                <Search size={28} />
+                <Search
+                  size={
+                    28
+                  }
+                />
               </div>
 
               <h2 className="mt-5 text-xl font-extrabold text-[#0B1F3A]">
@@ -318,15 +459,21 @@ export default function SearchPage() {
               </h2>
 
               <p className="mt-2 max-w-md text-sm leading-6 text-gray-500">
-                Use the search bar in the
-                header to find products by
-                name, description or slug.
+                Use the search bar in
+                the header to find
+                products by name,
+                description or slug.
               </p>
             </div>
-          ) : products.length === 0 ? (
+          ) : products.length ===
+            0 ? (
             <div className="flex min-h-[380px] flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-white px-5 py-12 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-50 text-[#FF6900]">
-                <SearchX size={28} />
+                <SearchX
+                  size={
+                    28
+                  }
+                />
               </div>
 
               <h2 className="mt-5 text-xl font-extrabold text-[#0B1F3A]">
@@ -334,15 +481,20 @@ export default function SearchPage() {
               </h2>
 
               <p className="mt-2 max-w-md text-sm leading-6 text-gray-500">
-                No products matched
-                “{keyword}”. Try another
-                product name or keyword.
+                No products matched “
+                {
+                  keyword
+                }
+                ”. Try another product
+                name or keyword.
               </p>
             </div>
           ) : (
             <div className="rounded-2xl bg-gray-200 p-3 sm:p-4">
               <ProductGrid
-                products={products}
+                products={
+                  products
+                }
                 emptyMessage="No matching products were found."
                 className="lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4"
               />

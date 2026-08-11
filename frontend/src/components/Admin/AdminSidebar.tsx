@@ -5,7 +5,10 @@ import type {
 } from "react";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+
+import {
+  useRouter,
+} from "next/navigation";
 
 import {
   Boxes,
@@ -31,6 +34,14 @@ import {
   isPathActive,
 } from "@/src/components/Header/headerHelpers";
 
+import {
+  useTenant,
+} from "@/src/context/TenantContext";
+
+import {
+  useHeaderSettings,
+} from "@/src/context/HeaderSettingsContext";
+
 /* =========================================================
    TYPES
 ========================================================= */
@@ -41,9 +52,14 @@ type AdminRole =
 
 type AdminUser = {
   _id: string;
+
   name: string;
+
   role: AdminRole;
-  tenantId?: string | null;
+
+  tenantId?:
+    | string
+    | null;
 };
 
 type AdminSidebarProps = {
@@ -55,25 +71,38 @@ type AdminSidebarProps = {
     open: boolean,
   ) => void;
 
-  adminUser: AdminUser;
+  adminUser:
+    AdminUser;
 };
 
 type MenuItem = {
   label: string;
+
   href: string;
-  icon: ElementType;
-  roles: AdminRole[];
+
+  icon:
+    ElementType;
+
+  roles:
+    AdminRole[];
 };
 
 /* =========================================================
    MENU ITEMS
 ========================================================= */
 
-const menuItems: MenuItem[] = [
+const menuItems:
+  MenuItem[] = [
   {
-    label: "Dashboard",
-    href: "/admin/dashboard",
-    icon: LayoutDashboard,
+    label:
+      "Dashboard",
+
+    href:
+      "/admin/dashboard",
+
+    icon:
+      LayoutDashboard,
+
     roles: [
       "admin",
       "superadmin",
@@ -81,38 +110,30 @@ const menuItems: MenuItem[] = [
   },
 
   {
-    label: "Tenants",
-    href: "/admin/tenants",
-    icon: Building2,
+    label:
+      "Tenants",
+
+    href:
+      "/admin/tenants",
+
+    icon:
+      Building2,
+
     roles: [
       "superadmin",
     ],
   },
 
   {
-    label: "Orders",
-    href: "/admin/orders",
-    icon: Package,
-    roles: [
-      "admin",
-      "superadmin",
-    ],
-  },
+    label:
+      "Orders",
 
-  {
-    label: "Products + Stock",
-    href: "/admin/products",
-    icon: Boxes,
-    roles: [
-      "admin",
-      "superadmin",
-    ],
-  },
+    href:
+      "/admin/orders",
 
-  {
-    label: "Product Categories",
-    href: "/admin/categories",
-    icon: Tags,
+    icon:
+      Package,
+
     roles: [
       "admin",
       "superadmin",
@@ -120,11 +141,47 @@ const menuItems: MenuItem[] = [
   },
 
   {
-    label: "Homepage Management",
+    label:
+      "Products + Stock",
+
+    href:
+      "/admin/products",
+
+    icon:
+      Boxes,
+
+    roles: [
+      "admin",
+      "superadmin",
+    ],
+  },
+
+  {
+    label:
+      "Product Categories",
+
+    href:
+      "/admin/categories",
+
+    icon:
+      Tags,
+
+    roles: [
+      "admin",
+      "superadmin",
+    ],
+  },
+
+  {
+    label:
+      "Homepage Management",
+
     href:
       "/admin/homepage-management",
+
     icon:
       GalleryHorizontalEnd,
+
     roles: [
       "admin",
       "superadmin",
@@ -132,10 +189,15 @@ const menuItems: MenuItem[] = [
   },
 
   {
-    label: "Header Management",
+    label:
+      "Header Management",
+
     href:
       "/admin/header-management",
-    icon: PanelTop,
+
+    icon:
+      PanelTop,
+
     roles: [
       "admin",
       "superadmin",
@@ -143,10 +205,15 @@ const menuItems: MenuItem[] = [
   },
 
   {
-    label: "Footer Management",
+    label:
+      "Footer Management",
+
     href:
       "/admin/footer-management",
-    icon: PanelBottom,
+
+    icon:
+      PanelBottom,
+
     roles: [
       "admin",
       "superadmin",
@@ -154,9 +221,15 @@ const menuItems: MenuItem[] = [
   },
 
   {
-    label: "Customers",
-    href: "/admin/customers",
-    icon: Users,
+    label:
+      "Customers",
+
+    href:
+      "/admin/customers",
+
+    icon:
+      Users,
+
     roles: [
       "admin",
       "superadmin",
@@ -164,9 +237,15 @@ const menuItems: MenuItem[] = [
   },
 
   {
-    label: "Coupons",
-    href: "/admin/coupons",
-    icon: TicketPercent,
+    label:
+      "Coupons",
+
+    href:
+      "/admin/coupons",
+
+    icon:
+      TicketPercent,
+
     roles: [
       "admin",
       "superadmin",
@@ -174,9 +253,15 @@ const menuItems: MenuItem[] = [
   },
 
   {
-    label: "Couriers",
-    href: "/admin/couriers",
-    icon: Truck,
+    label:
+      "Couriers",
+
+    href:
+      "/admin/couriers",
+
+    icon:
+      Truck,
+
     roles: [
       "admin",
       "superadmin",
@@ -186,10 +271,13 @@ const menuItems: MenuItem[] = [
   {
     label:
       "Supplier & Purchase",
+
     href:
       "/admin/supplier-and-purchase",
+
     icon:
       CircleDollarSign,
+
     roles: [
       "admin",
       "superadmin",
@@ -199,8 +287,13 @@ const menuItems: MenuItem[] = [
   {
     label:
       "ROI & Profitability",
-    href: "/admin/roi",
-    icon: TrendingUp,
+
+    href:
+      "/admin/roi",
+
+    icon:
+      TrendingUp,
+
     roles: [
       "admin",
       "superadmin",
@@ -208,9 +301,15 @@ const menuItems: MenuItem[] = [
   },
 
   {
-    label: "Settings",
-    href: "/admin/settings",
-    icon: Settings,
+    label:
+      "Settings",
+
+    href:
+      "/admin/settings",
+
+    icon:
+      Settings,
+
     roles: [
       "admin",
       "superadmin",
@@ -231,6 +330,75 @@ export default function AdminSidebar({
   const router =
     useRouter();
 
+  /* =======================================================
+     TENANT DATA
+  ======================================================= */
+
+  const {
+    selectedTenant,
+    loadingTenants,
+  } =
+    useTenant();
+
+  /* =======================================================
+     HEADER SETTINGS
+  ======================================================= */
+
+  const {
+    settings:
+      headerSettings,
+
+    isLoading:
+      headerSettingsLoading,
+  } =
+    useHeaderSettings();
+
+  const isSuperAdmin =
+    adminUser.role ===
+    "superadmin";
+
+  /* =======================================================
+     TENANT BRANDING
+
+     IMPORTANT:
+
+     Sidebar text/name:
+     1. Tenant Store Name
+     2. Tenant Business Name
+     3. Admin User Name
+     4. "Store"
+
+     Uploaded logo:
+     Header Management -> HeaderSetting.logo
+
+     This keeps the Store Name and uploaded logo independent.
+  ======================================================= */
+
+  const tenantBusinessName =
+    selectedTenant
+      ?.storeName
+      ?.trim() ||
+    selectedTenant
+      ?.businessName
+      ?.trim() ||
+    adminUser.name
+      ?.trim() ||
+    "Store";
+
+  const tenantLogo =
+    headerSettings
+      .logo
+      ?.trim() ||
+    "";
+
+  const isTenantBrandingLoading =
+    loadingTenants ||
+    headerSettingsLoading;
+
+  /* =======================================================
+     VISIBLE MENU
+  ======================================================= */
+
   const visibleMenuItems =
     menuItems.filter(
       (item) =>
@@ -245,11 +413,6 @@ export default function AdminSidebar({
 
   const handleLogout =
     () => {
-      /*
-       * Remove all supported admin-token and tenant keys
-       * so logout works with current and older login flows.
-       */
-
       [
         "townmelaAdminToken",
         "townmelaAdminUser",
@@ -344,20 +507,79 @@ export default function AdminSidebar({
                 false,
               )
             }
-            className="text-2xl font-black tracking-tight"
+            className="min-w-0 flex-1"
           >
-            Town
-            <span className="text-[#FF6900]">
-              Mela
-            </span>
+            {isSuperAdmin ? (
+              /* ===========================================
+                 SUPER ADMIN BRANDING
+              =========================================== */
 
-            <span className="ml-2 text-xs font-bold uppercase tracking-[0.16em] text-gray-400">
-              {adminUser.role ===
-              "superadmin"
-                ? "Super Admin"
-                : "Admin"}
-            </span>
+              <div className="flex items-center">
+                <span className="text-2xl font-black tracking-tight text-white">
+                  Town
+                </span>
+
+                <span className="text-2xl font-black tracking-tight text-[#FF6900]">
+                  Mela
+                </span>
+
+                <span className="ml-2 text-xs font-bold uppercase tracking-[0.16em] text-gray-400">
+                  Super Admin
+                </span>
+              </div>
+            ) : (
+              /* ===========================================
+                 TENANT ADMIN BRANDING
+              =========================================== */
+
+              <div className="flex min-w-0 items-center gap-3">
+                {/* LOGO / TEXT FALLBACK */}
+
+                {isTenantBrandingLoading ? (
+                  <div className="h-10 w-10 shrink-0 animate-pulse rounded-xl bg-white/10" />
+                ) : tenantLogo ? (
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white">
+                    <img
+                      src={
+                        tenantLogo
+                      }
+                      alt={
+                        tenantBusinessName
+                      }
+                      className="h-full w-full object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FF6900] text-sm font-black text-white">
+                    {tenantBusinessName
+                      .charAt(0)
+                      .toUpperCase()}
+                  </div>
+                )}
+
+                {/* STORE NAME */}
+
+                <div className="min-w-0">
+                  <p
+                    title={
+                      tenantBusinessName
+                    }
+                    className="max-w-[155px] truncate text-base font-black leading-5 text-white"
+                  >
+                    {
+                      tenantBusinessName
+                    }
+                  </p>
+
+                  <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-gray-400">
+                    Tenant Admin
+                  </p>
+                </div>
+              </div>
+            )}
           </Link>
+
+          {/* MOBILE CLOSE */}
 
           <button
             type="button"
@@ -368,9 +590,11 @@ export default function AdminSidebar({
             }
             aria-label="Close sidebar"
             className="
+              ml-2
               flex
               h-9
               w-9
+              shrink-0
               items-center
               justify-center
               rounded-lg
@@ -382,7 +606,9 @@ export default function AdminSidebar({
               lg:hidden
             "
           >
-            <X size={20} />
+            <X
+              size={20}
+            />
           </button>
         </div>
 

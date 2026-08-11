@@ -1,13 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import type { FormEvent } from "react";
+
+import {
+  useParams,
+  useRouter,
+} from "next/navigation";
+
+import type {
+  FormEvent,
+} from "react";
+
 import {
   useCallback,
   useEffect,
   useState,
 } from "react";
+
 import {
   AlertCircle,
   ArrowLeft,
@@ -16,24 +25,22 @@ import {
   RefreshCcw,
 } from "lucide-react";
 
+import {
+  tenantFetch,
+} from "@/src/lib/tenantApi";
+
 import CustomerCard from "./components/CustomerCard";
 import OrderedProducts from "./components/OrderedProducts";
 import OrderHeader from "./components/OrderHeader";
 import OrderSummaryCard from "./components/OrderSummaryCard";
 import PaymentCard from "./components/PaymentCard";
 import ShippingCard from "./components/ShippingCard";
+
 import StatusTimeline from "../components/StatusTimeline";
+
 import StatusUpdateCard, {
   type OrderStatus,
 } from "./components/StatusUpdateCard";
-
-/* =========================================================
-   API CONFIGURATION
-========================================================= */
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5000";
 
 /* =========================================================
    TYPES
@@ -61,21 +68,31 @@ type ShippingAddress = {
 
 type OrderItem = {
   _id?: string;
-  product?: string | { _id?: string };
+
+  product?:
+    | string
+    | {
+        _id?: string;
+      };
+
   name?: string;
   slug?: string;
   image?: string;
+
   quantity?: number;
   price?: number;
   lineTotal?: number;
+
   selectedSize?: string | null;
   selectedColor?: string | null;
 };
 
 type StatusHistoryItem = {
   _id?: string;
+
   status?: string;
   note?: string;
+
   changedAt?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -83,27 +100,47 @@ type StatusHistoryItem = {
 
 type Order = {
   _id: string;
+
   orderNumber: string;
+
   guestId?: string;
 
   customer?: Customer;
+
   shippingAddress?: ShippingAddress;
+
   items?: OrderItem[];
 
   subtotal?: number;
+
   shippingCost?: number;
+
   deliveryCharge?: number;
+
   discountAmount?: number;
+
   totalAmount?: number;
+
   grandTotal?: number;
 
   paymentMethod?: string;
-  paymentStatus?: PaymentStatus | string;
+
+  paymentStatus?:
+    | PaymentStatus
+    | string;
+
   transactionId?: string;
+
   paidAt?: string;
 
-  orderStatus?: OrderStatus | string;
-  status?: OrderStatus | string;
+  orderStatus?:
+    | OrderStatus
+    | string;
+
+  status?:
+    | OrderStatus
+    | string;
+
   statusHistory?: StatusHistoryItem[];
 
   createdAt?: string;
@@ -126,26 +163,16 @@ type UpdateStatusApiResponse = {
    LOCAL HELPERS
 ========================================================= */
 
-function getAdminToken() {
-  if (typeof window === "undefined") {
-    return "";
-  }
-
-  return (
-    localStorage.getItem("adminToken") ||
-    localStorage.getItem("token") ||
-    localStorage.getItem("accessToken") ||
-    ""
-  );
-}
-
-function getOrderStatus(order?: Order): OrderStatus {
+function getOrderStatus(
+  order?: Order,
+): OrderStatus {
   const status =
     order?.orderStatus ||
     order?.status ||
     "Pending";
 
-  const allowedStatuses: OrderStatus[] = [
+  const allowedStatuses:
+    OrderStatus[] = [
     "Pending",
     "Processing",
     "Shipped",
@@ -160,11 +187,18 @@ function getOrderStatus(order?: Order): OrderStatus {
     : "Pending";
 }
 
-function getPaymentStatus(order?: Order) {
-  return order?.paymentStatus || "Pending";
+function getPaymentStatus(
+  order?: Order,
+) {
+  return (
+    order?.paymentStatus ||
+    "Pending"
+  );
 }
 
-function getOrderTotal(order?: Order) {
+function getOrderTotal(
+  order?: Order,
+) {
   return Number(
     order?.totalAmount ??
       order?.grandTotal ??
@@ -172,7 +206,9 @@ function getOrderTotal(order?: Order) {
   );
 }
 
-function getShippingCost(order?: Order) {
+function getShippingCost(
+  order?: Order,
+) {
   return Number(
     order?.shippingCost ??
       order?.deliveryCharge ??
@@ -180,20 +216,38 @@ function getShippingCost(order?: Order) {
   );
 }
 
-function getSubtotal(order?: Order) {
-  if (typeof order?.subtotal === "number") {
+function getSubtotal(
+  order?: Order,
+) {
+  if (
+    typeof order?.subtotal ===
+    "number"
+  ) {
     return order.subtotal;
   }
 
-  return (order?.items || []).reduce(
-    (total, item) => {
+  return (
+    order?.items || []
+  ).reduce(
+    (
+      total,
+      item,
+    ) => {
       const lineTotal =
-        typeof item.lineTotal === "number"
+        typeof item.lineTotal ===
+        "number"
           ? item.lineTotal
-          : Number(item.price || 0) *
-            Number(item.quantity || 0);
+          : Number(
+              item.price || 0,
+            ) *
+            Number(
+              item.quantity || 0,
+            );
 
-      return total + lineTotal;
+      return (
+        total +
+        lineTotal
+      );
     },
     0,
   );
@@ -204,119 +258,205 @@ function getSubtotal(order?: Order) {
 ========================================================= */
 
 export default function AdminOrderDetailsPage() {
-  const params = useParams();
-  const router = useRouter();
+  const params =
+    useParams();
+
+  const router =
+    useRouter();
 
   const orderId =
-    typeof params.orderId === "string"
+    typeof params.orderId ===
+    "string"
       ? params.orderId
       : "";
 
-  const [order, setOrder] =
-    useState<Order | null>(null);
+  const [
+    order,
+    setOrder,
+  ] =
+    useState<Order | null>(
+      null,
+    );
 
-  const [selectedStatus, setSelectedStatus] =
-    useState<OrderStatus>("Pending");
+  const [
+    selectedStatus,
+    setSelectedStatus,
+  ] =
+    useState<OrderStatus>(
+      "Pending",
+    );
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] =
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(true);
+
+  const [
+    refreshing,
+    setRefreshing,
+  ] =
     useState(false);
 
-  const [updatingStatus, setUpdatingStatus] =
+  const [
+    updatingStatus,
+    setUpdatingStatus,
+  ] =
     useState(false);
 
-  const [error, setError] = useState("");
-  const [successMessage, setSuccessMessage] =
+  const [
+    error,
+    setError,
+  ] =
+    useState("");
+
+  const [
+    successMessage,
+    setSuccessMessage,
+  ] =
     useState("");
 
   /* =======================================================
      FETCH SINGLE ORDER
+
+     IMPORTANT:
+     tenantFetch automatically sends:
+
+     - Authorization
+     - X-Tenant-Id
+     - Content-Type
+     - Accept
+
+     SuperAdmin therefore loads only the currently
+     selected tenant's order.
   ======================================================= */
 
-  const fetchOrder = useCallback(
-    async (showRefreshLoader = false) => {
-      try {
-        if (!orderId) {
-          throw new Error(
-            "সঠিক order ID পাওয়া যায়নি।",
+  const fetchOrder =
+    useCallback(
+      async (
+        showRefreshLoader =
+          false,
+      ) => {
+        try {
+          if (!orderId) {
+            throw new Error(
+              "সঠিক order ID পাওয়া যায়নি।",
+            );
+          }
+
+          if (
+            showRefreshLoader
+          ) {
+            setRefreshing(
+              true,
+            );
+          } else {
+            setLoading(
+              true,
+            );
+          }
+
+          setError("");
+
+          setSuccessMessage(
+            "",
+          );
+
+          const response =
+            await tenantFetch(
+              `/api/orders/${orderId}`,
+              {
+                method:
+                  "GET",
+
+                cache:
+                  "no-store",
+              },
+            );
+
+          const data =
+            (await response
+              .json()
+              .catch(
+                () => null,
+              )) as
+              | SingleOrderApiResponse
+              | null;
+
+          if (
+            !response.ok
+          ) {
+            throw new Error(
+              data?.message ||
+                "Order details load করা সম্ভব হয়নি।",
+            );
+          }
+
+          if (
+            !data?.order
+          ) {
+            throw new Error(
+              "Order পাওয়া যায়নি।",
+            );
+          }
+
+          setOrder(
+            data.order,
+          );
+
+          setSelectedStatus(
+            getOrderStatus(
+              data.order,
+            ),
+          );
+        } catch (
+          fetchError
+        ) {
+          setOrder(
+            null,
+          );
+
+          setError(
+            fetchError instanceof
+              Error
+              ? fetchError.message
+              : "Order load করার সময় সমস্যা হয়েছে।",
+          );
+        } finally {
+          setLoading(
+            false,
+          );
+
+          setRefreshing(
+            false,
           );
         }
+      },
+      [
+        orderId,
+      ],
+    );
 
-        if (showRefreshLoader) {
-          setRefreshing(true);
-        } else {
-          setLoading(true);
-        }
-
-        setError("");
-        setSuccessMessage("");
-
-        const token = getAdminToken();
-
-        if (!token) {
-          throw new Error(
-            "Admin token পাওয়া যায়নি। অনুগ্রহ করে আবার admin login করুন।",
-          );
-        }
-
-        const response = await fetch(
-          `${API_BASE_URL}/api/orders/${orderId}`,
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            cache: "no-store",
-          },
-        );
-
-        const data: SingleOrderApiResponse =
-          await response.json();
-
-        if (!response.ok) {
-          throw new Error(
-            data.message ||
-              "Order details load করা সম্ভব হয়নি।",
-          );
-        }
-
-        if (!data.order) {
-          throw new Error(
-            "Order পাওয়া যায়নি।",
-          );
-        }
-
-        setOrder(data.order);
-        setSelectedStatus(
-          getOrderStatus(data.order),
-        );
-      } catch (fetchError) {
-        setOrder(null);
-
-        setError(
-          fetchError instanceof Error
-            ? fetchError.message
-            : "Order load করার সময় সমস্যা হয়েছে।",
-        );
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [orderId],
-  );
+  /* =======================================================
+     INITIAL LOAD
+  ======================================================= */
 
   useEffect(() => {
-    fetchOrder();
-  }, [fetchOrder]);
+    void fetchOrder();
+  }, [
+    fetchOrder,
+  ]);
 
   /* =======================================================
      UPDATE ORDER STATUS
+
+     tenantFetch ensures status update also remains
+     isolated to the currently selected tenant.
   ======================================================= */
 
   async function handleStatusUpdate(
-    event: FormEvent<HTMLFormElement>,
+    event:
+      FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
 
@@ -325,9 +465,14 @@ export default function AdminOrderDetailsPage() {
     }
 
     const previousStatus =
-      getOrderStatus(order);
+      getOrderStatus(
+        order,
+      );
 
-    if (selectedStatus === previousStatus) {
+    if (
+      selectedStatus ===
+      previousStatus
+    ) {
       setError(
         "বর্তমান status থেকে ভিন্ন একটি নতুন status নির্বাচন করুন।",
       );
@@ -336,87 +481,130 @@ export default function AdminOrderDetailsPage() {
     }
 
     try {
-      setUpdatingStatus(true);
-      setError("");
-      setSuccessMessage("");
-
-      const token = getAdminToken();
-
-      if (!token) {
-        throw new Error(
-          "Admin token পাওয়া যায়নি। অনুগ্রহ করে আবার admin login করুন।",
-        );
-      }
-
-      const response = await fetch(
-        `${API_BASE_URL}/api/orders/${order._id}/status`,
-        {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        body: JSON.stringify({
-        orderStatus: selectedStatus,
-        }),
-        },
+      setUpdatingStatus(
+        true,
       );
 
-      const data: UpdateStatusApiResponse =
-        await response.json();
+      setError("");
 
-      if (!response.ok) {
+      setSuccessMessage(
+        "",
+      );
+
+      const response =
+        await tenantFetch(
+          `/api/orders/${order._id}/status`,
+          {
+            method:
+              "PATCH",
+
+            body:
+              JSON.stringify({
+                orderStatus:
+                  selectedStatus,
+              }),
+          },
+        );
+
+      const data =
+        (await response
+          .json()
+          .catch(
+            () => null,
+          )) as
+          | UpdateStatusApiResponse
+          | null;
+
+      if (
+        !response.ok
+      ) {
         throw new Error(
-          data.message ||
+          data?.message ||
             "Order status update করা সম্ভব হয়নি।",
         );
       }
 
-      if (data.order) {
+      if (
+        data?.order
+      ) {
         const updatedStatus =
-          getOrderStatus(data.order);
+          getOrderStatus(
+            data.order,
+          );
 
-        setOrder(data.order);
-        setSelectedStatus(updatedStatus);
+        setOrder(
+          data.order,
+        );
+
+        setSelectedStatus(
+          updatedStatus,
+        );
       } else {
         const changedAt =
-          new Date().toISOString();
+          new Date()
+            .toISOString();
 
-        setOrder((previousOrder) => {
-          if (!previousOrder) {
-            return previousOrder;
-          }
+        setOrder(
+          (
+            previousOrder,
+          ) => {
+            if (
+              !previousOrder
+            ) {
+              return previousOrder;
+            }
 
-          return {
-            ...previousOrder,
-            orderStatus: selectedStatus,
-            status: selectedStatus,
-            updatedAt: changedAt,
-            statusHistory: [
-              ...(previousOrder.statusHistory ||
-                []),
-              {
-                status: selectedStatus,
+            return {
+              ...previousOrder,
+
+              orderStatus:
+                selectedStatus,
+
+              status:
+                selectedStatus,
+
+              updatedAt:
                 changedAt,
-              },
-            ],
-          };
-        });
 
-        setSelectedStatus(selectedStatus);
+              statusHistory: [
+                ...(
+                  previousOrder
+                    .statusHistory ||
+                  []
+                ),
+
+                {
+                  status:
+                    selectedStatus,
+
+                  changedAt,
+                },
+              ],
+            };
+          },
+        );
+
+        setSelectedStatus(
+          selectedStatus,
+        );
       }
 
       setSuccessMessage(
         `Order status সফলভাবে ${previousStatus} থেকে ${selectedStatus} করা হয়েছে।`,
       );
-    } catch (updateError) {
+    } catch (
+      updateError
+    ) {
       setError(
-        updateError instanceof Error
+        updateError instanceof
+          Error
           ? updateError.message
           : "Order status update করার সময় সমস্যা হয়েছে।",
       );
     } finally {
-      setUpdatingStatus(false);
+      setUpdatingStatus(
+        false,
+      );
     }
   }
 
@@ -437,7 +625,8 @@ export default function AdminOrderDetailsPage() {
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন।
+                অনুগ্রহ করে কিছুক্ষণ
+                অপেক্ষা করুন।
               </p>
             </div>
           </div>
@@ -450,16 +639,22 @@ export default function AdminOrderDetailsPage() {
      ERROR / NOT FOUND STATE
   ======================================================= */
 
-  if (error && !order) {
+  if (
+    error &&
+    !order
+  ) {
     return (
       <main className="min-h-screen bg-[#f6f7f9] px-3 py-5 sm:px-4 sm:py-6 lg:px-6 lg:py-8">
         <div className="mx-auto w-full max-w-[1450px]">
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={() =>
+              router.back()
+            }
             className="mb-5 inline-flex items-center gap-2 text-sm font-bold text-slate-700 transition hover:text-[#FF6900]"
           >
             <ArrowLeft className="h-4 w-4" />
+
             Back
           </button>
 
@@ -473,16 +668,21 @@ export default function AdminOrderDetailsPage() {
             </h1>
 
             <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-500">
-              {error}
+              {
+                error
+              }
             </p>
 
             <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
               <button
                 type="button"
-                onClick={() => fetchOrder()}
+                onClick={() =>
+                  void fetchOrder()
+                }
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#FF6900] px-5 text-sm font-bold text-white transition hover:bg-[#e85f00]"
               >
                 <RefreshCcw className="h-4 w-4" />
+
                 Try Again
               </button>
 
@@ -491,6 +691,7 @@ export default function AdminOrderDetailsPage() {
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-700 transition hover:border-orange-200 hover:text-[#FF6900]"
               >
                 <ArrowLeft className="h-4 w-4" />
+
                 All Orders
               </Link>
             </div>
@@ -509,23 +710,35 @@ export default function AdminOrderDetailsPage() {
   ======================================================= */
 
   const currentStatus =
-    getOrderStatus(order);
+    getOrderStatus(
+      order,
+    );
 
   const paymentStatus =
-    getPaymentStatus(order);
+    getPaymentStatus(
+      order,
+    );
 
   const subtotal =
-    getSubtotal(order);
+    getSubtotal(
+      order,
+    );
 
   const shippingCost =
-    getShippingCost(order);
+    getShippingCost(
+      order,
+    );
 
-  const discountAmount = Number(
-    order.discountAmount || 0,
-  );
+  const discountAmount =
+    Number(
+      order.discountAmount ||
+        0,
+    );
 
   const orderTotal =
-    getOrderTotal(order);
+    getOrderTotal(
+      order,
+    );
 
   /* =======================================================
      PAGE UI
@@ -544,13 +757,20 @@ export default function AdminOrderDetailsPage() {
             className="inline-flex w-fit items-center gap-2 text-sm font-bold text-slate-700 transition hover:text-[#FF6900]"
           >
             <ArrowLeft className="h-4 w-4" />
+
             Back to Orders
           </Link>
 
           <button
             type="button"
-            onClick={() => fetchOrder(true)}
-            disabled={refreshing}
+            onClick={() =>
+              void fetchOrder(
+                true,
+              )
+            }
+            disabled={
+              refreshing
+            }
             className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm transition hover:border-orange-200 hover:text-[#FF6900] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
           >
             <RefreshCcw
@@ -572,17 +792,28 @@ export default function AdminOrderDetailsPage() {
         ================================================= */}
 
         <OrderHeader
-          orderNumber={order.orderNumber}
-          createdAt={order.createdAt}
+          orderNumber={
+            order.orderNumber
+          }
+          createdAt={
+            order.createdAt
+          }
           productCount={
-            order.items?.length || 0
+            order.items
+              ?.length || 0
           }
           paymentMethod={
             order.paymentMethod
           }
-          orderTotal={orderTotal}
-          currentStatus={currentStatus}
-          paymentStatus={paymentStatus}
+          orderTotal={
+            orderTotal
+          }
+          currentStatus={
+            currentStatus
+          }
+          paymentStatus={
+            paymentStatus
+          }
         />
 
         {/* =================================================
@@ -594,7 +825,9 @@ export default function AdminOrderDetailsPage() {
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
 
             <p className="text-sm font-semibold leading-6 text-red-700">
-              {error}
+              {
+                error
+              }
             </p>
           </div>
         )}
@@ -608,7 +841,9 @@ export default function AdminOrderDetailsPage() {
             <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
 
             <p className="text-sm font-semibold leading-6 text-emerald-700">
-              {successMessage}
+              {
+                successMessage
+              }
             </p>
           </div>
         )}
@@ -625,8 +860,12 @@ export default function AdminOrderDetailsPage() {
           <div className="space-y-5">
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               <CustomerCard
-                customer={order.customer}
-                guestId={order.guestId}
+                customer={
+                  order.customer
+                }
+                guestId={
+                  order.guestId
+                }
               />
 
               <ShippingCard
@@ -637,14 +876,24 @@ export default function AdminOrderDetailsPage() {
             </div>
 
             <OrderedProducts
-              items={order.items}
+              items={
+                order.items
+              }
             />
 
             <StatusTimeline
-              history={order.statusHistory}
-              currentStatus={currentStatus}
-              createdAt={order.createdAt}
-              updatedAt={order.updatedAt}
+              history={
+                order.statusHistory
+              }
+              currentStatus={
+                currentStatus
+              }
+              createdAt={
+                order.createdAt
+              }
+              updatedAt={
+                order.updatedAt
+              }
             />
           </div>
 
@@ -654,35 +903,63 @@ export default function AdminOrderDetailsPage() {
 
           <aside className="space-y-5 xl:sticky xl:top-5 xl:self-start">
             <StatusUpdateCard
-              currentStatus={currentStatus}
-              selectedStatus={selectedStatus}
-              updatingStatus={updatingStatus}
-              onStatusChange={(status) => {
-                setSelectedStatus(status);
-                setError("");
-                setSuccessMessage("");
+              currentStatus={
+                currentStatus
+              }
+              selectedStatus={
+                selectedStatus
+              }
+              updatingStatus={
+                updatingStatus
+              }
+              onStatusChange={(
+                status,
+              ) => {
+                setSelectedStatus(
+                  status,
+                );
+
+                setError(
+                  "",
+                );
+
+                setSuccessMessage(
+                  "",
+                );
               }}
-              onSubmit={handleStatusUpdate}
+              onSubmit={
+                handleStatusUpdate
+              }
             />
 
             <PaymentCard
               paymentMethod={
                 order.paymentMethod
               }
-              paymentStatus={paymentStatus}
+              paymentStatus={
+                paymentStatus
+              }
               transactionId={
                 order.transactionId
               }
-              paidAt={order.paidAt}
+              paidAt={
+                order.paidAt
+              }
             />
 
             <OrderSummaryCard
-              subtotal={subtotal}
-              deliveryCharge={shippingCost}
+              subtotal={
+                subtotal
+              }
+              deliveryCharge={
+                shippingCost
+              }
               discountAmount={
                 discountAmount
               }
-              totalAmount={orderTotal}
+              totalAmount={
+                orderTotal
+              }
             />
           </aside>
         </div>
