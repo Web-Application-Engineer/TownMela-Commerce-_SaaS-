@@ -132,6 +132,10 @@ const popularCategoryRoutes = loadRouter(
   "./routes/popularCategoryRoutes"
 );
 
+const homepageProductSectionSettingRoutes = loadRouter(
+  "./routes/homepageProductSectionSettingRoutes"
+);
+
 const supplierRoutes = loadRouter(
   "./routes/supplierRoutes"
 );
@@ -550,6 +554,12 @@ app.use(
   "/api/popular-categories",
   popularCategoryRoutes
 );
+
+app.use(
+  "/api/homepage-product-section-settings",
+  homepageProductSectionSettingRoutes
+);
+
 
 /* =========================================================
    SUPPLIER AND PURCHASE ROUTES

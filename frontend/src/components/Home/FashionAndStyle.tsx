@@ -2,6 +2,8 @@
 
 import ProductCarousel from "../Products/ProductCarousel";
 
+import useHomepageProductSectionTitle from "../../hooks/useHomepageProductSectionTitle";
+
 import type {
   Product,
 } from "../../types/product";
@@ -16,25 +18,29 @@ type WomenFashionProps = {
 };
 
 /* =========================================================
-   WOMEN FASHION
-
-   Product layout:
-   src/components/Products/ProductCard.tsx
-
-   Cart and Buy Now logic:
-   src/hooks/useProductActions.ts
-
-   Carousel behavior:
-   src/components/Products/ProductCarousel.tsx
+   FASHION & STYLE
 ========================================================= */
 
 export default function WomenFashion({
   initialProducts,
   initialError = null,
 }: WomenFashionProps) {
-  /* =======================================================
-     ERROR UI
-  ======================================================= */
+  const {
+    title,
+    active,
+    isLoading,
+  } =
+    useHomepageProductSectionTitle(
+      "fashionstyle",
+      "Fashion & Style",
+    );
+
+  if (
+    isLoading ||
+    !active
+  ) {
+    return null;
+  }
 
   if (initialError) {
     return (
@@ -56,14 +62,10 @@ export default function WomenFashion({
     );
   }
 
-  /* =======================================================
-     SHARED CAROUSEL
-  ======================================================= */
-
   return (
     <ProductCarousel
       products={initialProducts}
-      title="Women Fashion"
+      title={title}
       showAllText="Show All"
       showAllLink="/shop"
       autoSlide

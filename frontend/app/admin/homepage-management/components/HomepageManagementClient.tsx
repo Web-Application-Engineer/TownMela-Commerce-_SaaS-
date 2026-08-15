@@ -99,6 +99,27 @@ type HomepageCategoryShowcasesApiResponse = {
 };
 
 /* =========================================================
+   HOMEPAGE PRODUCT SECTION API TYPES
+========================================================= */
+
+type HomepageProductSectionItem = {
+  id?: string;
+  key: string;
+  title: string;
+  active: boolean;
+  order: number;
+};
+
+type HomepageProductSectionSettingsApiResponse = {
+  success: boolean;
+  message?: string;
+  data?: {
+    sections?: HomepageProductSectionItem[];
+    isActive?: boolean;
+  };
+};
+
+/* =========================================================
    API CONFIGURATION
 ========================================================= */
 
@@ -526,6 +547,13 @@ export default function HomepageManagementClient() {
 
   const [categoryLoadError, setCategoryLoadError] = useState("");
 
+  const [productSections, setProductSections] =
+    useState<HomepageProductSectionItem[]>([]);
+  const [isLoadingProductSections, setIsLoadingProductSections] = useState(true);
+  const [isSavingProductSections, setIsSavingProductSections] = useState(false);
+  const [productSectionError, setProductSectionError] = useState("");
+  const [productSectionsActive, setProductSectionsActive] = useState(true);
+
   /* =======================================================
      LOAD HOMEPAGE BANNERS
   ======================================================= */
@@ -816,6 +844,71 @@ export default function HomepageManagementClient() {
       controller.abort();
     };
   }, [loadCategoryShowcases]);
+
+  /* =======================================================
+     LOAD HOMEPAGE PRODUCT SECTIONS
+  ======================================================= */
+
+  const loadProductSections = useCallback(async (signal?: AbortSignal) => {
+    try {
+      setIsLoadingProductSections(true);
+      setProductSectionError("");
+
+      const response = await fetch(
+        `${API_URL}/homepage-product-section-settings`,
+        {
+          method: "GET",
+          headers: getAdminHeaders(),
+          cache: "no-store",
+          signal,
+        },
+      );
+
+      const data =
+        await readJsonResponse<HomepageProductSectionSettingsApiResponse>(
+          response,
+        );
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message || "Failed to load homepage product sections.",
+        );
+      }
+
+      const sections = Array.isArray(data.data?.sections)
+        ? data.data.sections
+            .map((section, index) => ({
+              id: section.id,
+              key: section.key?.trim() || `section-${index + 1}`,
+              title: section.title?.trim() || `Section ${index + 1}`,
+              active: section.active !== false,
+              order: Math.max(1, Number(section.order) || index + 1),
+            }))
+            .sort((a, b) => a.order - b.order)
+        : [];
+
+      setProductSections(sections);
+      setProductSectionsActive(data.data?.isActive !== false);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+
+      console.error("Failed to load homepage product sections:", error);
+      setProductSections([]);
+      setProductSectionError(
+        error instanceof Error
+          ? error.message
+          : "Failed to load homepage product sections.",
+      );
+    } finally {
+      if (!signal?.aborted) setIsLoadingProductSections(false);
+    }
+  }, [selectedTenantId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadProductSections(controller.signal);
+    return () => controller.abort();
+  }, [loadProductSections]);
 
   /* =======================================================
      HOMEPAGE BANNER HELPERS
@@ -1210,6 +1303,127 @@ export default function HomepageManagementClient() {
   };
 
   /* =======================================================
+     HOMEPAGE PRODUCT SECTIONS
+  ======================================================= */
+
+  const handleAddProductSection = () => {
+    const nextOrder = productSections.length + 1;
+
+    setProductSections((currentSections) => [
+      ...currentSections,
+      {
+        key: `section-${Date.now()}`,
+        title: `New Section ${nextOrder}`,
+        active: true,
+        order: nextOrder,
+      },
+    ]);
+  };
+
+  const handleUpdateProductSection = (
+    index: number,
+    changes: Partial<HomepageProductSectionItem>,
+  ) => {
+    setProductSections((currentSections) =>
+      currentSections.map((section, sectionIndex) =>
+        sectionIndex === index ? { ...section, ...changes } : section,
+      ),
+    );
+  };
+
+  const handleMoveProductSection = (
+    index: number,
+    direction: "up" | "down",
+  ) => {
+    setProductSections((currentSections) => {
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= currentSections.length) {
+        return currentSections;
+      }
+
+      const next = [...currentSections];
+      const [moved] = next.splice(index, 1);
+      next.splice(targetIndex, 0, moved);
+
+      return next.map((section, sectionIndex) => ({
+        ...section,
+        order: sectionIndex + 1,
+      }));
+    });
+  };
+
+  const handleDeleteProductSection = (index: number) => {
+    setProductSections((currentSections) =>
+      currentSections
+        .filter((_, sectionIndex) => sectionIndex !== index)
+        .map((section, sectionIndex) => ({
+          ...section,
+          order: sectionIndex + 1,
+        })),
+    );
+  };
+
+  const handleSaveProductSections = async () => {
+    if (isSavingProductSections) return;
+
+    const sections = productSections.map((section, index) => ({
+      key: section.key.trim() || `section-${index + 1}`,
+      title: section.title.trim(),
+      active: section.active !== false,
+      order: index + 1,
+    }));
+
+    const emptyTitleIndex = sections.findIndex((section) => !section.title);
+    if (emptyTitleIndex !== -1) {
+      setProductSectionError(`Section ${emptyTitleIndex + 1} title is required.`);
+      return;
+    }
+
+    try {
+      setIsSavingProductSections(true);
+      setProductSectionError("");
+
+      const response = await fetch(
+        `${API_URL}/homepage-product-section-settings`,
+        {
+          method: "PUT",
+          headers: getAdminHeaders(),
+          body: JSON.stringify({
+            sections,
+            isActive: productSectionsActive,
+          }),
+        },
+      );
+
+      const data =
+        await readJsonResponse<HomepageProductSectionSettingsApiResponse>(
+          response,
+        );
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message || "Failed to save homepage product sections.",
+        );
+      }
+
+      await loadProductSections();
+
+      window.dispatchEvent(
+        new CustomEvent("homepage:product-sections-updated"),
+      );
+    } catch (error) {
+      console.error("Failed to save homepage product sections:", error);
+      setProductSectionError(
+        error instanceof Error
+          ? error.message
+          : "Failed to save homepage product sections.",
+      );
+    } finally {
+      setIsSavingProductSections(false);
+    }
+  };
+
+  /* =======================================================
      COMPONENT UI
   ======================================================= */
 
@@ -1248,6 +1462,137 @@ export default function HomepageManagementClient() {
         onUpdateRightBottomBanner={handleUpdateRightBottomBanner}
         onDeleteRightBottomBanner={handleDeleteRightBottomBanner}
       />
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-4 border-b border-slate-200 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">
+              Homepage Product Sections
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Rename, add, hide, remove or reorder product section titles for
+              the active tenant.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setProductSectionsActive((value) => !value)}
+              className={`rounded-lg border px-3 py-2 text-sm font-semibold ${
+                productSectionsActive
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-slate-200 bg-slate-100 text-slate-600"
+              }`}
+            >
+              {productSectionsActive ? "Sections Active" : "Sections Inactive"}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleAddProductSection}
+              disabled={isLoadingProductSections || isSavingProductSections}
+              className="rounded-lg border border-[#FF6900] bg-white px-4 py-2 text-sm font-bold text-[#FF6900] disabled:opacity-50"
+            >
+              + Add Section
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void handleSaveProductSections()}
+              disabled={isLoadingProductSections || isSavingProductSections}
+              className="rounded-lg bg-[#0F1B33] px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+            >
+              {isSavingProductSections ? "Saving..." : "Save Sections"}
+            </button>
+          </div>
+        </div>
+
+        {productSectionError && (
+          <div className="mx-5 mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
+            {productSectionError}
+          </div>
+        )}
+
+        {isLoadingProductSections ? (
+          <div className="px-5 py-8 text-sm font-semibold text-[#FF6900]">
+            Loading homepage product sections...
+          </div>
+        ) : productSections.length === 0 ? (
+          <div className="px-5 py-8 text-sm text-slate-500">
+            No product sections found. Click &quot;Add Section&quot; to create one.
+          </div>
+        ) : (
+          <div className="space-y-3 p-5">
+            {productSections.map((section, index) => (
+              <div
+                key={`${section.key}-${index}`}
+                className="grid items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[150px_minmax(0,1fr)_130px_210px]"
+              >
+                <div className="text-sm font-bold uppercase tracking-wide text-slate-500">
+                  Section Title - {index + 1}
+                </div>
+
+                <input
+                  type="text"
+                  value={section.title}
+                  onChange={(event) =>
+                    handleUpdateProductSection(index, {
+                      title: event.target.value,
+                    })
+                  }
+                  className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#FF6900]"
+                  placeholder="Enter section title"
+                />
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleUpdateProductSection(index, {
+                      active: !section.active,
+                    })
+                  }
+                  className={`h-11 w-full rounded-lg border text-sm font-bold ${
+                    section.active
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-slate-300 bg-white text-slate-500"
+                  }`}
+                >
+                  {section.active ? "Active" : "Inactive"}
+                </button>
+
+                <div className="flex h-11 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleMoveProductSection(index, "up")}
+                    disabled={index === 0}
+                    className="flex-1 rounded-lg border border-slate-300 bg-white font-bold disabled:opacity-40"
+                  >
+                    ↑
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleMoveProductSection(index, "down")}
+                    disabled={index === productSections.length - 1}
+                    className="flex-1 rounded-lg border border-slate-300 bg-white font-bold disabled:opacity-40"
+                  >
+                    ↓
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteProductSection(index)}
+                    className="flex-[1.4] rounded-lg border border-red-200 bg-red-50 px-3 text-sm font-bold text-red-600"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       {(isLoadingPopularCategories || popularCategoryError) && (
         <div

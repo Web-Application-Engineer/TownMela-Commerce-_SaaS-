@@ -2,6 +2,8 @@
 
 import ProductCarousel from "../Products/ProductCarousel";
 
+import useHomepageProductSectionTitle from "../../hooks/useHomepageProductSectionTitle";
+
 import type {
   Product,
 } from "../../types/product";
@@ -17,24 +19,28 @@ type ExclusiveProductsProps = {
 
 /* =========================================================
    EXCLUSIVE PRODUCTS
-
-   Product layout:
-   src/components/Products/ProductCard.tsx
-
-   Cart and Buy Now logic:
-   src/hooks/useProductActions.ts
-
-   Carousel behavior:
-   src/components/Products/ProductCarousel.tsx
 ========================================================= */
 
 export default function ExclusiveProducts({
   initialProducts,
   initialError = null,
 }: ExclusiveProductsProps) {
-  /* =======================================================
-     ERROR UI
-  ======================================================= */
+  const {
+    title,
+    active,
+    isLoading,
+  } =
+    useHomepageProductSectionTitle(
+      "exclusive",
+      "Exclusive",
+    );
+
+  if (
+    isLoading ||
+    !active
+  ) {
+    return null;
+  }
 
   if (initialError) {
     return (
@@ -56,14 +62,10 @@ export default function ExclusiveProducts({
     );
   }
 
-  /* =======================================================
-     SHARED CAROUSEL
-  ======================================================= */
-
   return (
     <ProductCarousel
       products={initialProducts}
-      title="Exclusive"
+      title={title}
       showAllText="Show All"
       showAllLink="/shop"
       autoSlide

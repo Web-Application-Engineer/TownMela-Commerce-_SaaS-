@@ -31,6 +31,8 @@ import type {
   CategoriesApiResponse,
   Category,
   FormState,
+  HomepageProductSectionOption,
+  HomepageProductSectionSettingsApiResponse,
   ProductApiResponse,
   ProductFormProps,
 } from "./types/productForm";
@@ -87,6 +89,21 @@ export default function ProductForm({
     isCategoriesLoading,
     setIsCategoriesLoading,
   ] = useState(true);
+
+  const [
+    homepageSections,
+    setHomepageSections,
+  ] = useState<HomepageProductSectionOption[]>([]);
+
+  const [
+    isHomepageSectionsLoading,
+    setIsHomepageSectionsLoading,
+  ] = useState(true);
+
+  const [
+    homepageSectionError,
+    setHomepageSectionError,
+  ] = useState("");
 
   const [
     features,
@@ -225,6 +242,87 @@ export default function ProductForm({
   useEffect(() => {
     void loadCategories();
   }, [loadCategories]);
+
+  /* =======================================================
+     LOAD ACTIVE HOMEPAGE PRODUCT SECTIONS
+  ======================================================= */
+
+  const loadHomepageSections =
+    useCallback(async () => {
+      try {
+        setIsHomepageSectionsLoading(true);
+        setHomepageSectionError("");
+
+        const response =
+          await tenantFetch(
+            "/api/homepage-product-section-settings",
+            {
+              method: "GET",
+              cache: "no-store",
+            },
+          );
+
+        const data:
+          HomepageProductSectionSettingsApiResponse =
+          await response.json();
+
+        if (
+          !response.ok ||
+          !data.success
+        ) {
+          throw new Error(
+            data.message ||
+              "Homepage product sections could not be loaded.",
+          );
+        }
+
+        const activeSections =
+          Array.isArray(
+            data.data?.sections,
+          )
+            ? data.data.sections
+                .filter(
+                  (section) =>
+                    section.active !== false,
+                )
+                .sort(
+                  (
+                    firstSection,
+                    secondSection,
+                  ) =>
+                    Number(firstSection.order) -
+                    Number(secondSection.order),
+                )
+            : [];
+
+        setHomepageSections(
+          data.data?.isActive === false
+            ? []
+            : activeSections,
+        );
+      } catch (error) {
+        console.error(
+          "Product form homepage section error:",
+          error,
+        );
+
+        setHomepageSections([]);
+
+        setHomepageSectionError(
+          error instanceof Error
+            ? error.message
+            : "Homepage product sections could not be loaded.",
+        );
+      } finally {
+        setIsHomepageSectionsLoading(
+          false,
+        );
+      }
+    }, [selectedTenantId]);
+
+  useEffect(() => {
+    void loadHomepageSections();
+  }, [loadHomepageSections]);
 
   /* =======================================================
      FORM FIELD UPDATE
@@ -568,6 +666,9 @@ export default function ProductForm({
         category:
           form.category,
 
+        homepageSection:
+          form.homepageSection.trim(),
+
         image:
           form.image.trim(),
 
@@ -732,7 +833,80 @@ export default function ProductForm({
   onCategoryChange={(value) =>
     updateField("category", value)
   }
-/>  
+/>
+
+{/* ===================================================
+    HOMEPAGE PRODUCT SECTION
+=================================================== */}
+
+<section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+  <div className="mb-4">
+    <h2 className="text-lg font-bold text-slate-900">
+      Homepage Section
+    </h2>
+
+    <p className="mt-1 text-sm text-slate-500">
+      Assign this product to one active homepage product section.
+    </p>
+  </div>
+
+  <div>
+    <label
+      htmlFor="homepageSection"
+      className="mb-2 block text-sm font-semibold text-slate-700"
+    >
+      Active Homepage Section
+    </label>
+
+    <select
+      id="homepageSection"
+      value={form.homepageSection}
+      disabled={
+        isSubmitting ||
+        isHomepageSectionsLoading
+      }
+      onChange={(event) =>
+        updateField(
+          "homepageSection",
+          event.target.value,
+        )
+      }
+      className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 outline-none transition focus:border-[#FF6900] focus:ring-2 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+    >
+      <option value="">
+        {isHomepageSectionsLoading
+          ? "Loading active sections..."
+          : "Not assigned to homepage section"}
+      </option>
+
+      {homepageSections.map(
+        (section) => (
+          <option
+            key={section.key}
+            value={section.key}
+          >
+            {section.title}
+          </option>
+        ),
+      )}
+    </select>
+
+    {homepageSectionError ? (
+      <p className="mt-2 text-sm font-medium text-red-600">
+        {homepageSectionError}
+      </p>
+    ) : !isHomepageSectionsLoading &&
+      homepageSections.length === 0 ? (
+      <p className="mt-2 text-sm text-slate-500">
+        No active homepage product section is available for this tenant.
+      </p>
+    ) : (
+      <p className="mt-2 text-xs text-slate-500">
+        Only active sections from Homepage Management are shown here.
+      </p>
+    )}
+  </div>
+</section>
 
 {/* ===================================================
     MAIN IMAGE

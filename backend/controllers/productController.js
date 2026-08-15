@@ -149,6 +149,7 @@ const UPDATE_FIELDS = new Set([
   "sizes",
   "colors",
   "category",
+  "homepageSection",
   "stock",
   "isActive",
 ]);
@@ -166,13 +167,26 @@ const prepareProductUpdate = (req) => {
     }
   }
 
-  for (const field of ["name", "slug", "description", "image"]) {
+  for (const field of [
+    "name",
+    "slug",
+    "description",
+    "image",
+    "homepageSection",
+  ]) {
     if (typeof updateData[field] === "string") {
       updateData[field] = updateData[field].trim();
     }
   }
 
-  if (updateData.slug) updateData.slug = updateData.slug.toLowerCase();
+  if (updateData.slug) {
+    updateData.slug = updateData.slug.toLowerCase();
+  }
+
+  if (updateData.homepageSection) {
+    updateData.homepageSection =
+      updateData.homepageSection.toLowerCase();
+  }
 
   if (Object.prototype.hasOwnProperty.call(updateData, "isActive")) {
     updateData.isActive =
@@ -256,6 +270,14 @@ const createProduct = async (req, res) => {
       sizes: parseArrayField(req.body.sizes),
       colors: parseArrayField(req.body.colors),
       category,
+
+      homepageSection:
+        String(
+          req.body.homepageSection || ""
+        )
+          .trim()
+          .toLowerCase(),
+
       stock: stock === undefined || stock === "" ? 0 : stock,
       isActive: true,
       isDeleted: false,

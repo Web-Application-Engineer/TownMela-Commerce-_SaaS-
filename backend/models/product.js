@@ -72,6 +72,14 @@ const productSchema = new mongoose.Schema(
       index: true,
     },
 
+    homepageSection: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: "",
+      index: true,
+    },
+
     stock: {
       type: Number,
       required: true,
@@ -131,6 +139,14 @@ productSchema.index({
   isActive: 1,
 });
 
+productSchema.index({
+  tenant: 1,
+  homepageSection: 1,
+  isDeleted: 1,
+  isActive: 1,
+  createdAt: -1,
+});
+
 productSchema.pre("validate", function normalizeProduct(next) {
   if (typeof this.name === "string") {
     this.name = this.name.trim();
@@ -138,6 +154,12 @@ productSchema.pre("validate", function normalizeProduct(next) {
 
   if (typeof this.slug === "string") {
     this.slug = this.slug.trim().toLowerCase();
+  }
+
+  if (typeof this.homepageSection === "string") {
+    this.homepageSection = this.homepageSection
+      .trim()
+      .toLowerCase();
   }
 
   for (const field of ["features", "images", "sizes", "colors"]) {

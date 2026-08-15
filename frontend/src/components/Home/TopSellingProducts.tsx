@@ -2,6 +2,8 @@
 
 import ProductCarousel from "../Products/ProductCarousel";
 
+import useHomepageProductSectionTitle from "../../hooks/useHomepageProductSectionTitle";
+
 import type {
   Product,
 } from "../../types/product";
@@ -17,24 +19,28 @@ type TopSellingProductsProps = {
 
 /* =========================================================
    TOP SELLING PRODUCTS
-
-   Product layout:
-   src/components/Products/ProductCard.tsx
-
-   Cart and Buy Now logic:
-   src/hooks/useProductActions.ts
-
-   Carousel behavior:
-   src/components/Products/ProductCarousel.tsx
 ========================================================= */
 
 export default function TopSellingProducts({
   initialProducts,
   initialError = null,
 }: TopSellingProductsProps) {
-  /* =======================================================
-     ERROR UI
-  ======================================================= */
+  const {
+    title,
+    active,
+    isLoading,
+  } =
+    useHomepageProductSectionTitle(
+      "topselling",
+      "Top Selling",
+    );
+
+  if (
+    isLoading ||
+    !active
+  ) {
+    return null;
+  }
 
   if (initialError) {
     return (
@@ -56,14 +62,10 @@ export default function TopSellingProducts({
     );
   }
 
-  /* =======================================================
-     SHARED CAROUSEL
-  ======================================================= */
-
   return (
     <ProductCarousel
       products={initialProducts}
-      title="Top Selling"
+      title={title}
       showAllText="Show All"
       showAllLink="/shop"
       autoSlide

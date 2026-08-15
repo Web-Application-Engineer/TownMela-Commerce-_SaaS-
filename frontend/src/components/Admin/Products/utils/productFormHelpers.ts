@@ -96,6 +96,14 @@ export function createInitialFormState(
         initialData?.category,
       ),
 
+    /* =====================================================
+       HOMEPAGE PRODUCT SECTION
+    ===================================================== */
+
+    homepageSection:
+      initialData?.homepageSection ||
+      "",
+
     image:
       initialData?.image || "",
 

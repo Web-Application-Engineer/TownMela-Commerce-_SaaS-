@@ -41,6 +41,12 @@ export type Product = {
 
   category?: ProductCategory;
 
+  /* =====================================================
+     HOMEPAGE PRODUCT SECTION
+  ===================================================== */
+
+  homepageSection?: string;
+
   features?: string[];
 
   createdAt?: string;
@@ -125,4 +131,3 @@ export type ProductGridProps = {
 
   className?: string;
 };
-
