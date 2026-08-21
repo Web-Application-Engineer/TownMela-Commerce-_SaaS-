@@ -16,6 +16,10 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ??
   "http://localhost:5000";
 
+const TENANT_ID =
+  process.env.NEXT_PUBLIC_TENANT_ID ??
+  "";
+
 /* =========================================================
    TYPES
 ========================================================= */
@@ -23,6 +27,14 @@ const API_BASE_URL =
 export type FooterLink = {
   label: string;
   url: string;
+  enabled: boolean;
+  order: number;
+};
+
+export type AdditionalSocialLink = {
+  label: string;
+  url: string;
+  iconText: string;
   enabled: boolean;
   order: number;
 };
@@ -41,7 +53,27 @@ export type FooterSettings = {
   youtube: string;
   linkedin: string;
 
+  additionalSocialLinks:
+    AdditionalSocialLink[];
+
+  backgroundImage: string;
+
+  popularCategoryHeading: string;
+  popularCategoryLinks: FooterLink[];
+  showPopularCategory: boolean;
+
+  customerInfoHeading: string;
+  customerInfoLinks: FooterLink[];
+  showCustomerInfo: boolean;
+
+  quickNavigationHeading: string;
+  quickNavigationLinks: FooterLink[];
+  showQuickNavigation: boolean;
+
+  googleMapHeading: string;
+  googleMapCtaText: string;
   googleMapUrl: string;
+  showGoogleMap: boolean;
 
   footerLinks: FooterLink[];
 
@@ -80,7 +112,64 @@ const defaultFooterSettings: FooterSettings = {
   youtube: "",
   linkedin: "",
 
+  additionalSocialLinks: [],
+
+  backgroundImage:
+    "/images/real-dhaka.webp",
+
+  popularCategoryHeading:
+    "Popular Category",
+
+  popularCategoryLinks:
+    [
+    { label: "Smart Gadgets", url: "/shop?category=smart-gadgets", enabled: true, order: 1 },
+    { label: "Gents Fashion", url: "/shop?category=gents-fashion", enabled: true, order: 2 },
+    { label: "Phone Accessories", url: "/shop?category=phone-accessories", enabled: true, order: 3 },
+    { label: "Women Fashion", url: "/shop?category=women-fashion", enabled: true, order: 4 },
+    { label: "Watches", url: "/shop?category=watches", enabled: true, order: 5 },
+    { label: "Electronics", url: "/shop?category=electronics", enabled: true, order: 6 },
+  ],
+
+  showPopularCategory: true,
+
+  customerInfoHeading:
+    "Customer Info",
+
+  customerInfoLinks:
+    [
+    { label: "Shop", url: "/shop", enabled: true, order: 1 },
+    { label: "About Us", url: "/about-us", enabled: true, order: 2 },
+    { label: "Contact Us", url: "/contact-us", enabled: true, order: 3 },
+    { label: "Privacy Policy", url: "/privacy-policy", enabled: true, order: 4 },
+    { label: "Terms & Conditions", url: "/terms-and-conditions", enabled: true, order: 5 },
+    { label: "Return & Refund Policy", url: "/return-refund-policy", enabled: true, order: 6 },
+  ],
+
+  showCustomerInfo: true,
+
+  quickNavigationHeading:
+    "Quick Navigation",
+
+  quickNavigationLinks:
+    [
+    { label: "Track Orders", url: "/order-tracking", enabled: true, order: 1 },
+    { label: "Cart", url: "/cart", enabled: true, order: 2 },
+    { label: "Checkout", url: "/checkout", enabled: true, order: 3 },
+    { label: "My Account", url: "/my-account", enabled: true, order: 4 },
+    { label: "Customer Complaint", url: "/customer-complaint", enabled: true, order: 5 },
+  ],
+
+  showQuickNavigation: true,
+
+  googleMapHeading:
+    "Find us on Google Map",
+
+  googleMapCtaText:
+    "Find us on Google map",
+
   googleMapUrl: "",
+
+  showGoogleMap: true,
 
   footerLinks: [],
 
@@ -121,10 +210,6 @@ export function FooterSettingsProvider({
   ] =
     useState(true);
 
-  /* =======================================================
-     LOAD PUBLIC FOOTER SETTINGS
-  ======================================================= */
-
   const refreshFooterSettings =
     useCallback(async () => {
       try {
@@ -139,6 +224,13 @@ export function FooterSettingsProvider({
               headers: {
                 Accept:
                   "application/json",
+
+                ...(TENANT_ID
+                  ? {
+                      "X-Tenant-Id":
+                        TENANT_ID,
+                    }
+                  : {}),
               },
 
               cache:
@@ -172,6 +264,37 @@ export function FooterSettingsProvider({
           ...defaultFooterSettings,
           ...data,
 
+          additionalSocialLinks:
+            Array.isArray(
+              data.additionalSocialLinks,
+            )
+              ? data.additionalSocialLinks
+              : [],
+
+          popularCategoryLinks:
+            Array.isArray(
+              data.popularCategoryLinks,
+            )
+              ? data.popularCategoryLinks
+              : defaultFooterSettings
+                  .popularCategoryLinks,
+
+          customerInfoLinks:
+            Array.isArray(
+              data.customerInfoLinks,
+            )
+              ? data.customerInfoLinks
+              : defaultFooterSettings
+                  .customerInfoLinks,
+
+          quickNavigationLinks:
+            Array.isArray(
+              data.quickNavigationLinks,
+            )
+              ? data.quickNavigationLinks
+              : defaultFooterSettings
+                  .quickNavigationLinks,
+
           footerLinks:
             Array.isArray(
               data.footerLinks,
@@ -193,19 +316,11 @@ export function FooterSettingsProvider({
       }
     }, []);
 
-  /* =======================================================
-     INITIAL LOAD
-  ======================================================= */
-
   useEffect(() => {
     void refreshFooterSettings();
   }, [
     refreshFooterSettings,
   ]);
-
-  /* =======================================================
-     REFRESH AFTER ADMIN UPDATE
-  ======================================================= */
 
   useEffect(() => {
     const handleFooterSettingsUpdated =

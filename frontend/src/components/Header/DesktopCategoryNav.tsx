@@ -50,6 +50,7 @@ export default function DesktopCategoryNav({
           w-full
           max-w-[1485px]
           items-center
+          justify-between
           gap-8
           overflow-x-auto
           px-3

@@ -177,6 +177,11 @@ const footerSettingRoutes = require(
   "./routes/footerSettingRoutes"
 );
 
+
+const checkoutSettingRoutes = loadRouter(
+  "./routes/checkoutSettingRoutes"
+);
+
 /* =========================================================
    EXPRESS APPLICATION
 ========================================================= */
@@ -617,6 +622,12 @@ app.use(
 app.use(
   "/api/footer-settings",
   footerSettingRoutes
+);
+
+
+app.use(
+  "/api/checkout-settings",
+  checkoutSettingRoutes
 );
 
 /* =========================================================

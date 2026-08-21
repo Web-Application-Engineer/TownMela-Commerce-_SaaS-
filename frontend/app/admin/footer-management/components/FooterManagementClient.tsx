@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -41,6 +42,14 @@ type FooterLink = {
   order: number;
 };
 
+type AdditionalSocialLink = {
+  label: string;
+  url: string;
+  iconText: string;
+  enabled: boolean;
+  order: number;
+};
+
 type FooterSettings = {
   businessName: string;
   logo: string;
@@ -55,9 +64,27 @@ type FooterSettings = {
   youtube: string;
   linkedin: string;
 
-  googleMapUrl: string;
+  additionalSocialLinks:
+    AdditionalSocialLink[];
 
-  footerLinks: FooterLink[];
+  backgroundImage: string;
+
+  popularCategoryHeading: string;
+  popularCategoryLinks: FooterLink[];
+  showPopularCategory: boolean;
+
+  customerInfoHeading: string;
+  customerInfoLinks: FooterLink[];
+  showCustomerInfo: boolean;
+
+  quickNavigationHeading: string;
+  quickNavigationLinks: FooterLink[];
+  showQuickNavigation: boolean;
+
+  googleMapHeading: string;
+  googleMapCtaText: string;
+  googleMapUrl: string;
+  showGoogleMap: boolean;
 
   copyrightText: string;
 
@@ -94,9 +121,64 @@ const defaultFooterSettings: FooterSettings = {
   youtube: "",
   linkedin: "",
 
+  additionalSocialLinks: [],
+
+  backgroundImage:
+    "/images/real-dhaka.webp",
+
+  popularCategoryHeading:
+    "Popular Category",
+
+  popularCategoryLinks:
+    [
+    { label: "Smart Gadgets", url: "/shop?category=smart-gadgets", enabled: true, order: 1 },
+    { label: "Gents Fashion", url: "/shop?category=gents-fashion", enabled: true, order: 2 },
+    { label: "Phone Accessories", url: "/shop?category=phone-accessories", enabled: true, order: 3 },
+    { label: "Women Fashion", url: "/shop?category=women-fashion", enabled: true, order: 4 },
+    { label: "Watches", url: "/shop?category=watches", enabled: true, order: 5 },
+    { label: "Electronics", url: "/shop?category=electronics", enabled: true, order: 6 },
+  ],
+
+  showPopularCategory: true,
+
+  customerInfoHeading:
+    "Customer Info",
+
+  customerInfoLinks:
+    [
+    { label: "Shop", url: "/shop", enabled: true, order: 1 },
+    { label: "About Us", url: "/about-us", enabled: true, order: 2 },
+    { label: "Contact Us", url: "/contact-us", enabled: true, order: 3 },
+    { label: "Privacy Policy", url: "/privacy-policy", enabled: true, order: 4 },
+    { label: "Terms & Conditions", url: "/terms-and-conditions", enabled: true, order: 5 },
+    { label: "Return & Refund Policy", url: "/return-refund-policy", enabled: true, order: 6 },
+  ],
+
+  showCustomerInfo: true,
+
+  quickNavigationHeading:
+    "Quick Navigation",
+
+  quickNavigationLinks:
+    [
+    { label: "Track Orders", url: "/order-tracking", enabled: true, order: 1 },
+    { label: "Cart", url: "/cart", enabled: true, order: 2 },
+    { label: "Checkout", url: "/checkout", enabled: true, order: 3 },
+    { label: "My Account", url: "/my-account", enabled: true, order: 4 },
+    { label: "Customer Complaint", url: "/customer-complaint", enabled: true, order: 5 },
+  ],
+
+  showQuickNavigation: true,
+
+  googleMapHeading:
+    "Find us on Google Map",
+
+  googleMapCtaText:
+    "Find us on Google map",
+
   googleMapUrl: "",
 
-  footerLinks: [],
+  showGoogleMap: true,
 
   copyrightText: "",
 
@@ -128,6 +210,7 @@ const getStoredValue = (
 
 export default function FooterManagementClient() {
   const {
+    selectedTenant,
     selectedTenantId,
     loadingTenants,
   } = useTenant();
@@ -169,6 +252,13 @@ export default function FooterManagementClient() {
     setSuccessMessage,
   ] =
     useState("");
+
+  /*
+   * Prevent an older tenant request from overwriting
+   * the newly selected tenant's footer data.
+   */
+  const loadRequestIdRef =
+    useRef(0);
 
   /* =======================================================
      HEADERS
@@ -220,6 +310,9 @@ export default function FooterManagementClient() {
 
   const loadSettings =
     useCallback(async () => {
+      const requestId =
+        ++loadRequestIdRef.current;
+
       if (loadingTenants) {
         return;
       }
@@ -289,18 +382,56 @@ export default function FooterManagementClient() {
         const data =
           payload.data ?? {};
 
+        if (
+          requestId !==
+          loadRequestIdRef.current
+        ) {
+          return;
+        }
+
         setSettings({
           ...defaultFooterSettings,
           ...data,
 
-          footerLinks:
+          additionalSocialLinks:
             Array.isArray(
-              data.footerLinks,
+              data.additionalSocialLinks,
             )
-              ? data.footerLinks
+              ? data.additionalSocialLinks
               : [],
+
+          popularCategoryLinks:
+            Array.isArray(
+              data.popularCategoryLinks,
+            )
+              ? data.popularCategoryLinks
+              : defaultFooterSettings
+                  .popularCategoryLinks,
+
+          customerInfoLinks:
+            Array.isArray(
+              data.customerInfoLinks,
+            )
+              ? data.customerInfoLinks
+              : defaultFooterSettings
+                  .customerInfoLinks,
+
+          quickNavigationLinks:
+            Array.isArray(
+              data.quickNavigationLinks,
+            )
+              ? data.quickNavigationLinks
+              : defaultFooterSettings
+                  .quickNavigationLinks,
         });
       } catch (error) {
+        if (
+          requestId !==
+          loadRequestIdRef.current
+        ) {
+          return;
+        }
+
         console.error(
           "Footer settings load error:",
           error,
@@ -316,7 +447,12 @@ export default function FooterManagementClient() {
             : "Failed to load footer settings.",
         );
       } finally {
-        setIsLoading(false);
+        if (
+          requestId ===
+          loadRequestIdRef.current
+        ) {
+          setIsLoading(false);
+        }
       }
     }, [
       buildHeaders,
@@ -526,38 +662,41 @@ export default function FooterManagementClient() {
     );
   }
 
+
   /* =======================================================
-     FOOTER LINKS
+     ADDITIONAL SOCIAL LINKS
   ======================================================= */
 
-  function addFooterLink() {
+  function addAdditionalSocialLink() {
     updateSetting(
-      "footerLinks",
+      "additionalSocialLinks",
       [
-        ...settings.footerLinks,
-
+        ...settings.additionalSocialLinks,
         {
           label: "",
           url: "",
+          iconText: "•",
           enabled: true,
           order:
-            settings.footerLinks.length +
+            settings.additionalSocialLinks.length +
             1,
         },
       ],
     );
   }
 
-  function updateFooterLink(
+  function updateAdditionalSocialLink(
     index: number,
-    field: keyof FooterLink,
+    field:
+      keyof AdditionalSocialLink,
     value:
       | string
       | boolean
       | number,
   ) {
-    const updatedLinks =
-      settings.footerLinks.map(
+    updateSetting(
+      "additionalSocialLinks",
+      settings.additionalSocialLinks.map(
         (
           item,
           itemIndex,
@@ -568,19 +707,16 @@ export default function FooterManagementClient() {
                 [field]: value,
               }
             : item,
-      );
-
-    updateSetting(
-      "footerLinks",
-      updatedLinks,
+      ),
     );
   }
 
-  function removeFooterLink(
+  function removeAdditionalSocialLink(
     index: number,
   ) {
-    const updatedLinks =
-      settings.footerLinks
+    updateSetting(
+      "additionalSocialLinks",
+      settings.additionalSocialLinks
         .filter(
           (
             _,
@@ -597,11 +733,90 @@ export default function FooterManagementClient() {
             order:
               itemIndex + 1,
           }),
-        );
+        ),
+    );
+  }
+
+  /* =======================================================
+     FOOTER MENU GROUPS
+  ======================================================= */
+
+  type FooterLinkGroupField =
+    | "popularCategoryLinks"
+    | "customerInfoLinks"
+    | "quickNavigationLinks";
+
+  function addLinkToGroup(
+    field: FooterLinkGroupField,
+  ) {
+    const currentLinks =
+      settings[field];
 
     updateSetting(
-      "footerLinks",
-      updatedLinks,
+      field,
+      [
+        ...currentLinks,
+        {
+          label: "",
+          url: "",
+          enabled: true,
+          order:
+            currentLinks.length + 1,
+        },
+      ],
+    );
+  }
+
+  function updateLinkInGroup(
+    field: FooterLinkGroupField,
+    index: number,
+    key: keyof FooterLink,
+    value:
+      | string
+      | boolean
+      | number,
+  ) {
+    updateSetting(
+      field,
+      settings[field].map(
+        (
+          item,
+          itemIndex,
+        ) =>
+          itemIndex === index
+            ? {
+                ...item,
+                [key]: value,
+              }
+            : item,
+      ),
+    );
+  }
+
+  function removeLinkFromGroup(
+    field: FooterLinkGroupField,
+    index: number,
+  ) {
+    updateSetting(
+      field,
+      settings[field]
+        .filter(
+          (
+            _,
+            itemIndex,
+          ) =>
+            itemIndex !== index,
+        )
+        .map(
+          (
+            item,
+            itemIndex,
+          ) => ({
+            ...item,
+            order:
+              itemIndex + 1,
+          }),
+        ),
     );
   }
 
@@ -668,14 +883,45 @@ export default function FooterManagementClient() {
             ...current,
             ...payload.data,
 
-            footerLinks:
+            additionalSocialLinks:
               Array.isArray(
                 payload.data
-                  ?.footerLinks,
+                  ?.additionalSocialLinks,
               )
                 ? payload.data
-                    .footerLinks
-                : current.footerLinks,
+                    .additionalSocialLinks
+                : current
+                    .additionalSocialLinks,
+
+            popularCategoryLinks:
+              Array.isArray(
+                payload.data
+                  ?.popularCategoryLinks,
+              )
+                ? payload.data
+                    .popularCategoryLinks
+                : current
+                    .popularCategoryLinks,
+
+            customerInfoLinks:
+              Array.isArray(
+                payload.data
+                  ?.customerInfoLinks,
+              )
+                ? payload.data
+                    .customerInfoLinks
+                : current
+                    .customerInfoLinks,
+
+            quickNavigationLinks:
+              Array.isArray(
+                payload.data
+                  ?.quickNavigationLinks,
+              )
+                ? payload.data
+                    .quickNavigationLinks
+                : current
+                    .quickNavigationLinks,
           }),
         );
       }
@@ -731,6 +977,30 @@ export default function FooterManagementClient() {
 
   return (
     <div className="space-y-6">
+      {/* ===================================================
+          ACTIVE TENANT
+      =================================================== */}
+
+      <section className="flex flex-col gap-3 rounded-2xl border border-orange-200 bg-orange-50/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#FF6900]">
+            Editing Footer For
+          </p>
+
+          <p className="mt-1 text-base font-black text-[#0B1F3A]">
+            {selectedTenant?.storeName ||
+              selectedTenant?.businessName ||
+              "No tenant selected"}
+          </p>
+        </div>
+
+        <div className="text-xs font-semibold text-gray-500">
+          {selectedTenantId
+            ? "Changes are saved only to this tenant."
+            : "Select a tenant from the header first."}
+        </div>
+      </section>
+
       {/* ===================================================
           ERROR / SUCCESS
       =================================================== */}
@@ -1087,6 +1357,328 @@ export default function FooterManagementClient() {
       </section>
 
       {/* ===================================================
+          ADDITIONAL SOCIAL LINKS
+      =================================================== */}
+
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-black text-[#0B1F3A]">
+              Additional Social Links
+            </h2>
+
+            <p className="mt-1 text-sm text-gray-500">
+              Add extra social profiles for this tenant.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={
+              addAdditionalSocialLink
+            }
+            className="inline-flex items-center gap-2 rounded-xl bg-[#0B1F3A] px-4 py-2.5 text-sm font-bold text-white"
+          >
+            <Plus size={16} />
+            Add Social Link
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-3">
+          {settings.additionalSocialLinks
+            .length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 p-5 text-center text-sm text-gray-500">
+              No additional social link added yet.
+            </div>
+          ) : (
+            settings.additionalSocialLinks.map(
+              (
+                item,
+                index,
+              ) => (
+                <div
+                  key={`${item.label}-${index}`}
+                  className="grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-[150px_100px_1fr_90px_auto_auto]"
+                >
+                  <input
+                    type="text"
+                    value={item.label}
+                    onChange={(event) =>
+                      updateAdditionalSocialLink(
+                        index,
+                        "label",
+                        event.target.value,
+                      )
+                    }
+                    placeholder="TikTok"
+                    className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none"
+                  />
+
+                  <input
+                    type="text"
+                    value={item.iconText}
+                    onChange={(event) =>
+                      updateAdditionalSocialLink(
+                        index,
+                        "iconText",
+                        event.target.value,
+                      )
+                    }
+                    placeholder="♪"
+                    maxLength={12}
+                    className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none"
+                  />
+
+                  <input
+                    type="text"
+                    value={item.url}
+                    onChange={(event) =>
+                      updateAdditionalSocialLink(
+                        index,
+                        "url",
+                        event.target.value,
+                      )
+                    }
+                    placeholder="https://..."
+                    className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none"
+                  />
+
+                  <input
+                    type="number"
+                    min={1}
+                    value={item.order}
+                    onChange={(event) =>
+                      updateAdditionalSocialLink(
+                        index,
+                        "order",
+                        Number(
+                          event.target.value,
+                        ) || 1,
+                      )
+                    }
+                    title="Order"
+                    aria-label="Social link order"
+                    className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none"
+                  />
+
+                  <label className="flex items-center gap-2 text-sm font-bold text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={item.enabled}
+                      onChange={(event) =>
+                        updateAdditionalSocialLink(
+                          index,
+                          "enabled",
+                          event.target.checked,
+                        )
+                      }
+                      className="h-4 w-4 accent-[#FF6900]"
+                    />
+                    Show
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      removeAdditionalSocialLink(
+                        index,
+                      )
+                    }
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600"
+                    aria-label="Remove additional social link"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ),
+            )
+          )}
+        </div>
+
+        <p className="mt-3 text-xs leading-5 text-gray-500">
+          Example: TikTok, X, Pinterest, Telegram or another profile. Use a short icon text such as ♪, X, P or ✈.
+        </p>
+      </section>
+
+      {/* ===================================================
+          FOOTER APPEARANCE
+      =================================================== */}
+
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <div>
+          <h2 className="text-lg font-black text-[#0B1F3A]">
+            Footer Appearance
+          </h2>
+
+          <p className="mt-1 text-sm text-gray-500">
+            Manage the tenant-specific footer background image.
+          </p>
+        </div>
+
+        <div className="mt-5">
+          <label className="mb-2 block text-sm font-bold text-gray-700">
+            Background Image URL / Path
+          </label>
+
+          <input
+            type="text"
+            value={
+              settings.backgroundImage
+            }
+            onChange={(event) =>
+              updateSetting(
+                "backgroundImage",
+                event.target.value,
+              )
+            }
+            placeholder="/images/real-dhaka.webp"
+            className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-orange-300"
+          />
+        </div>
+      </section>
+
+      {/* ===================================================
+          POPULAR CATEGORY
+      =================================================== */}
+
+      <FooterMenuEditor
+        title="Popular Category"
+        description="Manage the Popular Category heading and links shown in the footer."
+        heading={settings.popularCategoryHeading}
+        enabled={settings.showPopularCategory}
+        links={settings.popularCategoryLinks}
+        onHeadingChange={(value) =>
+          updateSetting(
+            "popularCategoryHeading",
+            value,
+          )
+        }
+        onEnabledChange={(value) =>
+          updateSetting(
+            "showPopularCategory",
+            value,
+          )
+        }
+        onAdd={() =>
+          addLinkToGroup(
+            "popularCategoryLinks",
+          )
+        }
+        onChange={(
+          index,
+          field,
+          value,
+        ) =>
+          updateLinkInGroup(
+            "popularCategoryLinks",
+            index,
+            field,
+            value,
+          )
+        }
+        onRemove={(index) =>
+          removeLinkFromGroup(
+            "popularCategoryLinks",
+            index,
+          )
+        }
+      />
+
+      {/* ===================================================
+          CUSTOMER INFO
+      =================================================== */}
+
+      <FooterMenuEditor
+        title="Customer Info"
+        description="Manage the Customer Info heading and links shown in the footer."
+        heading={settings.customerInfoHeading}
+        enabled={settings.showCustomerInfo}
+        links={settings.customerInfoLinks}
+        onHeadingChange={(value) =>
+          updateSetting(
+            "customerInfoHeading",
+            value,
+          )
+        }
+        onEnabledChange={(value) =>
+          updateSetting(
+            "showCustomerInfo",
+            value,
+          )
+        }
+        onAdd={() =>
+          addLinkToGroup(
+            "customerInfoLinks",
+          )
+        }
+        onChange={(
+          index,
+          field,
+          value,
+        ) =>
+          updateLinkInGroup(
+            "customerInfoLinks",
+            index,
+            field,
+            value,
+          )
+        }
+        onRemove={(index) =>
+          removeLinkFromGroup(
+            "customerInfoLinks",
+            index,
+          )
+        }
+      />
+
+      {/* ===================================================
+          QUICK NAVIGATION
+      =================================================== */}
+
+      <FooterMenuEditor
+        title="Quick Navigation"
+        description="Manage the Quick Navigation heading and links shown in the footer."
+        heading={settings.quickNavigationHeading}
+        enabled={settings.showQuickNavigation}
+        links={settings.quickNavigationLinks}
+        onHeadingChange={(value) =>
+          updateSetting(
+            "quickNavigationHeading",
+            value,
+          )
+        }
+        onEnabledChange={(value) =>
+          updateSetting(
+            "showQuickNavigation",
+            value,
+          )
+        }
+        onAdd={() =>
+          addLinkToGroup(
+            "quickNavigationLinks",
+          )
+        }
+        onChange={(
+          index,
+          field,
+          value,
+        ) =>
+          updateLinkInGroup(
+            "quickNavigationLinks",
+            index,
+            field,
+            value,
+          )
+        }
+        onRemove={(index) =>
+          removeLinkFromGroup(
+            "quickNavigationLinks",
+            index,
+          )
+        }
+      />
+
+      {/* ===================================================
           GOOGLE MAP
       =================================================== */}
 
@@ -1100,6 +1692,66 @@ export default function FooterManagementClient() {
             Add the Google Map link for this business.
           </p>
         </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="mb-2 block text-sm font-bold text-gray-700">
+              Section Heading
+            </label>
+
+            <input
+              type="text"
+              value={
+                settings.googleMapHeading
+              }
+              onChange={(event) =>
+                updateSetting(
+                  "googleMapHeading",
+                  event.target.value,
+                )
+              }
+              className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-orange-300"
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-bold text-gray-700">
+              Map CTA Text
+            </label>
+
+            <input
+              type="text"
+              value={
+                settings.googleMapCtaText
+              }
+              onChange={(event) =>
+                updateSetting(
+                  "googleMapCtaText",
+                  event.target.value,
+                )
+              }
+              className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-orange-300"
+            />
+          </div>
+        </div>
+
+        <label className="mt-4 flex items-center gap-2 text-sm font-bold text-gray-700">
+          <input
+            type="checkbox"
+            checked={
+              settings.showGoogleMap
+            }
+            onChange={(event) =>
+              updateSetting(
+                "showGoogleMap",
+                event.target.checked,
+              )
+            }
+            className="h-4 w-4 accent-[#FF6900]"
+          />
+
+          Show Google Map section
+        </label>
 
         <div className="mt-5">
           <label className="mb-2 block text-sm font-bold text-gray-700">
@@ -1123,126 +1775,6 @@ export default function FooterManagementClient() {
         </div>
       </section>
 
-      {/* ===================================================
-          FOOTER LINKS
-      =================================================== */}
-
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-black text-[#0B1F3A]">
-              Footer Links
-            </h2>
-
-            <p className="mt-1 text-sm text-gray-500">
-              Add simple useful links to the footer.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={
-              addFooterLink
-            }
-            className="inline-flex items-center gap-2 rounded-xl bg-[#0B1F3A] px-4 py-2.5 text-sm font-bold text-white"
-          >
-            <Plus
-              size={16}
-            />
-
-            Add Link
-          </button>
-        </div>
-
-        <div className="mt-5 space-y-3">
-          {settings.footerLinks
-            .length === 0 ? (
-            <div className="rounded-xl border border-dashed border-gray-300 p-5 text-center text-sm text-gray-500">
-              No footer link added yet.
-            </div>
-          ) : (
-            settings.footerLinks.map(
-              (
-                item,
-                index,
-              ) => (
-                <div
-                  key={
-                    index
-                  }
-                  className="grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-[1fr_1fr_auto_auto]"
-                >
-                  <input
-                    type="text"
-                    value={
-                      item.label
-                    }
-                    onChange={(event) =>
-                      updateFooterLink(
-                        index,
-                        "label",
-                        event.target.value,
-                      )
-                    }
-                    placeholder="About Us"
-                    className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none"
-                  />
-
-                  <input
-                    type="text"
-                    value={
-                      item.url
-                    }
-                    onChange={(event) =>
-                      updateFooterLink(
-                        index,
-                        "url",
-                        event.target.value,
-                      )
-                    }
-                    placeholder="/about"
-                    className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none"
-                  />
-
-                  <label className="flex items-center gap-2 text-sm font-bold text-gray-600">
-                    <input
-                      type="checkbox"
-                      checked={
-                        item.enabled
-                      }
-                      onChange={(event) =>
-                        updateFooterLink(
-                          index,
-                          "enabled",
-                          event.target.checked,
-                        )
-                      }
-                      className="h-4 w-4 accent-[#FF6900]"
-                    />
-
-                    Show
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      removeFooterLink(
-                        index,
-                      )
-                    }
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600"
-                    aria-label="Remove footer link"
-                  >
-                    <Trash2
-                      size={16}
-                    />
-                  </button>
-                </div>
-              ),
-            )
-          )}
-        </div>
-      </section>
 
       {/* ===================================================
           COPYRIGHT
@@ -1344,5 +1876,204 @@ export default function FooterManagementClient() {
         </div>
       </section>
     </div>
+  );
+}
+
+/* =========================================================
+   REUSABLE FOOTER MENU EDITOR
+========================================================= */
+
+function FooterMenuEditor({
+  title,
+  description,
+  heading,
+  enabled,
+  links,
+  onHeadingChange,
+  onEnabledChange,
+  onAdd,
+  onChange,
+  onRemove,
+}: {
+  title: string;
+  description: string;
+  heading: string;
+  enabled: boolean;
+  links: FooterLink[];
+  onHeadingChange: (
+    value: string,
+  ) => void;
+  onEnabledChange: (
+    value: boolean,
+  ) => void;
+  onAdd: () => void;
+  onChange: (
+    index: number,
+    field: keyof FooterLink,
+    value:
+      | string
+      | boolean
+      | number,
+  ) => void;
+  onRemove: (
+    index: number,
+  ) => void;
+}) {
+  return (
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-black text-[#0B1F3A]">
+            {title}
+          </h2>
+
+          <p className="mt-1 text-sm text-gray-500">
+            {description}
+          </p>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm font-bold text-gray-600">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(event) =>
+              onEnabledChange(
+                event.target.checked,
+              )
+            }
+            className="h-4 w-4 accent-[#FF6900]"
+          />
+
+          Show section
+        </label>
+      </div>
+
+      <div className="mt-5">
+        <label className="mb-2 block text-sm font-bold text-gray-700">
+          Section Heading
+        </label>
+
+        <input
+          type="text"
+          value={heading}
+          onChange={(event) =>
+            onHeadingChange(
+              event.target.value,
+            )
+          }
+          className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-orange-300"
+        />
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm font-bold text-gray-700">
+          Menu Links
+        </p>
+
+        <button
+          type="button"
+          onClick={onAdd}
+          className="inline-flex items-center gap-2 rounded-xl bg-[#0B1F3A] px-4 py-2.5 text-sm font-bold text-white"
+        >
+          <Plus size={16} />
+          Add Link
+        </button>
+      </div>
+
+      <div className="mt-4 space-y-3">
+        {links.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-gray-300 p-5 text-center text-sm text-gray-500">
+            No link added yet.
+          </div>
+        ) : (
+          links.map(
+            (
+              item,
+              index,
+            ) => (
+              <div
+                key={`${item.label}-${index}`}
+                className="grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-[1fr_1fr_100px_auto_auto]"
+              >
+                <input
+                  type="text"
+                  value={item.label}
+                  onChange={(event) =>
+                    onChange(
+                      index,
+                      "label",
+                      event.target.value,
+                    )
+                  }
+                  placeholder="Link label"
+                  className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none"
+                />
+
+                <input
+                  type="text"
+                  value={item.url}
+                  onChange={(event) =>
+                    onChange(
+                      index,
+                      "url",
+                      event.target.value,
+                    )
+                  }
+                  placeholder="/page-or-category"
+                  className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none"
+                />
+
+                <input
+                  type="number"
+                  min={1}
+                  value={item.order}
+                  onChange={(event) =>
+                    onChange(
+                      index,
+                      "order",
+                      Number(
+                        event.target.value,
+                      ) || 1,
+                    )
+                  }
+                  aria-label="Menu order"
+                  title="Order"
+                  placeholder="Order"
+                  className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none"
+                />
+
+                <label className="flex items-center gap-2 text-sm font-bold text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={item.enabled}
+                    onChange={(event) =>
+                      onChange(
+                        index,
+                        "enabled",
+                        event.target.checked,
+                      )
+                    }
+                    className="h-4 w-4 accent-[#FF6900]"
+                  />
+
+                  Show
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    onRemove(index)
+                  }
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600"
+                  aria-label="Remove footer menu link"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ),
+          )
+        )}
+      </div>
+    </section>
   );
 }

@@ -10,6 +10,10 @@ const Category = require(
   "../../models/Category"
 );
 
+const Product = require(
+  "../../models/product"
+);
+
 const HomepageBanner = require(
   "../../models/HomepageBanner"
 );
@@ -215,6 +219,7 @@ const copyMasterTemplateToTenant =
 
     const copySummary = {
       categories: 0,
+      products: 0,
       homepageBanners: 0,
       homepageCategoryShowcases: 0,
       popularCategories: 0,
@@ -439,6 +444,106 @@ const copyMasterTemplateToTenant =
           {
             count:
               copiedCategories.length,
+          }
+        );
+      }
+
+      /* =====================================================
+         COPY PRODUCTS
+      ===================================================== */
+
+      currentStage =
+        "load_master_products";
+
+      const masterProducts =
+        await Product.find({
+          tenant: masterTenantId,
+        })
+          .select(
+            "+tenant +isDeleted +deletedAt"
+          )
+          .sort({
+            createdAt: 1,
+          })
+          .lean();
+
+      currentStage =
+        "check_destination_products";
+
+      const existingProductCount =
+        await Product.countDocuments({
+          tenant: newTenantId,
+        });
+
+      if (
+        existingProductCount > 0
+      ) {
+        throw createProvisioningError(
+          "Destination tenant already contains product data",
+          "DESTINATION_PRODUCT_DATA_EXISTS",
+          {
+            existingProductCount,
+          }
+        );
+      }
+
+      const productDocuments =
+        masterProducts
+          .map((product) => {
+            const mappedCategoryId =
+              remapCategoryId(
+                product.category,
+                categoryIdMap
+              );
+
+            if (!mappedCategoryId) {
+              return null;
+            }
+
+            return {
+              ...removeDocumentFields(
+                product
+              ),
+
+              tenant:
+                newTenantId,
+
+              category:
+                mappedCategoryId,
+            };
+          })
+          .filter(Boolean);
+
+      if (
+        productDocuments.length > 0
+      ) {
+        currentStage =
+          "insert_products";
+
+        logCopyStep(
+          "Copying products",
+          {
+            count:
+              productDocuments.length,
+          }
+        );
+
+        const copiedProducts =
+          await Product.insertMany(
+            productDocuments,
+            {
+              ordered: true,
+            }
+          );
+
+        copySummary.products =
+          copiedProducts.length;
+
+        logCopyStep(
+          "Products copied",
+          {
+            count:
+              copiedProducts.length,
           }
         );
       }
@@ -753,6 +858,10 @@ const removeTenantTemplateData =
     }
 
     await Promise.all([
+      Product.deleteMany({
+        tenant: tenantId,
+      }),
+
       Category.deleteMany({
         tenant: tenantId,
       }),

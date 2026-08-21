@@ -33,9 +33,12 @@ import {
 } from "next/navigation";
 
 import {
-  getSelectedTenantId,
   tenantFetch,
 } from "@/src/lib/tenantApi";
+
+import {
+  useTenant,
+} from "@/src/context/TenantContext";
 
 /* =========================================================
    TYPES
@@ -453,6 +456,11 @@ function SkeletonBox({
 export default function AdminDashboardPage() {
   const router = useRouter();
 
+  const {
+    selectedTenantId,
+    loadingTenants,
+  } = useTenant();
+
   const [
     dashboardData,
     setDashboardData,
@@ -489,18 +497,18 @@ export default function AdminDashboardPage() {
         setIsLoading(true);
         setErrorMessage("");
 
-        const tenantId =
-          getSelectedTenantId();
-
         /*
-          Super Admin must select a tenant before loading
-          tenant-scoped dashboard data.
-
-          Tenant Admin already has a fixed tenant ID saved
-          by TenantProvider after login.
+          Wait until TenantProvider finishes resolving the
+          active tenant. This is important for Super Admin
+          because TownMela can be selected automatically
+          immediately after login.
         */
 
-        if (!tenantId) {
+        if (loadingTenants) {
+          return;
+        }
+
+        if (!selectedTenantId) {
           setDashboardData(null);
           setExecutiveData(null);
 
@@ -619,30 +627,22 @@ export default function AdminDashboardPage() {
       } finally {
         setIsLoading(false);
       }
-    }, [router]);
+    }, [
+      loadingTenants,
+      router,
+      selectedTenantId,
+    ]);
 
   useEffect(() => {
+    if (loadingTenants) {
+      return;
+    }
+
     void loadDashboardData();
-  }, [loadDashboardData]);
-
-  useEffect(() => {
-    const handleTenantChanged =
-      () => {
-        void loadDashboardData();
-      };
-
-    window.addEventListener(
-      "tenant-changed",
-      handleTenantChanged,
-    );
-
-    return () => {
-      window.removeEventListener(
-        "tenant-changed",
-        handleTenantChanged,
-      );
-    };
-  }, [loadDashboardData]);
+  }, [
+    loadingTenants,
+    loadDashboardData,
+  ]);
 
   /* =======================================================
      NORMALIZED DASHBOARD DATA

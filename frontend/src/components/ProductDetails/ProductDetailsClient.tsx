@@ -110,6 +110,81 @@ type CartApiResponse = {
   };
 };
 
+type CheckoutSettings = {
+  supportPhone: string;
+  whatsappNumber: string;
+  deliveryArea: string;
+  deliveryTime: string;
+  codText: string;
+  collectionPoint: string;
+  orderInstruction: string;
+  returnPolicy: string;
+  warrantyText: string;
+  soldByText: string;
+  isActive: boolean;
+};
+
+type CheckoutSettingsApiResponse = {
+  success?: boolean;
+  message?: string;
+  data?: {
+    settings?: Partial<CheckoutSettings>;
+    checkoutSettings?: Partial<CheckoutSettings>;
+  };
+  settings?: Partial<CheckoutSettings>;
+  checkoutSettings?: Partial<CheckoutSettings>;
+};
+
+const DEFAULT_CHECKOUT_SETTINGS: CheckoutSettings = {
+  supportPhone: "+880 1786373379",
+  whatsappNumber: "+880 1786373379",
+  deliveryArea: "{checkoutSettings.deliveryArea}",
+  deliveryTime:
+    "Dhaka: 1-2 working days\nOutside Dhaka: 2-3 working days",
+  codText: "{checkoutSettings.codText}",
+  collectionPoint:
+    "{checkoutSettings.collectionPoint}",
+  orderInstruction:
+    "অর্ডার করতে Buy Now-এ ক্লিক করুন অথবা সরাসরি WhatsApp-এ যোগাযোগ করে আপনার কাঙ্ক্ষিত প্রোডাক্ট নিশ্চিত করুন।",
+  returnPolicy: "{checkoutSettings.returnPolicy}",
+  warrantyText: "{checkoutSettings.warrantyText}",
+  soldByText: "TownMela",
+  isActive: true,
+};
+
+function extractCheckoutSettings(
+  payload: CheckoutSettingsApiResponse | null
+): Partial<CheckoutSettings> {
+  if (!payload) {
+    return {};
+  }
+
+  return (
+    payload.data?.settings ||
+    payload.data?.checkoutSettings ||
+    payload.settings ||
+    payload.checkoutSettings ||
+    {}
+  );
+}
+
+function getTelHref(value: string) {
+  const normalized = value
+    .trim()
+    .replace(/[^\d+]/g, "");
+
+  return normalized ? `tel:${normalized}` : "#";
+}
+
+function getWhatsAppHref(value: string) {
+  const digits = value.replace(/\D/g, "");
+
+  return digits
+    ? `https://wa.me/${digits}`
+    : "#";
+}
+
+
 /* =========================================================
    PRODUCT TAB TYPE
 ========================================================= */
@@ -297,6 +372,129 @@ export default function ProductDetailsClient({
     isDeliveryOpen,
     setIsDeliveryOpen,
   ] = useState(true);
+
+  /* =======================================================
+     TENANT CHECKOUT SETTINGS
+  ======================================================= */
+
+  const [
+    checkoutSettings,
+    setCheckoutSettings,
+  ] = useState<CheckoutSettings>(
+    DEFAULT_CHECKOUT_SETTINGS
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCheckoutSettings =
+      async () => {
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/api/checkout-settings`,
+            {
+              method: "GET",
+              cache: "no-store",
+              headers: {
+                Accept: "application/json",
+                ...(TENANT_ID
+                  ? {
+                      "X-Tenant-Id":
+                        TENANT_ID,
+                    }
+                  : {}),
+              },
+            }
+          );
+
+          const payload =
+            (await response
+              .json()
+              .catch(
+                () => null
+              )) as CheckoutSettingsApiResponse | null;
+
+          if (!response.ok) {
+            throw new Error(
+              payload?.message ||
+                "Checkout settings could not be loaded."
+            );
+          }
+
+          const settings =
+            extractCheckoutSettings(
+              payload
+            );
+
+          if (
+            isMounted &&
+            settings.isActive !== false
+          ) {
+            const mergedSettings: CheckoutSettings = {
+              supportPhone:
+                settings.supportPhone?.trim() ||
+                DEFAULT_CHECKOUT_SETTINGS.supportPhone,
+
+              whatsappNumber:
+                settings.whatsappNumber?.trim() ||
+                DEFAULT_CHECKOUT_SETTINGS.whatsappNumber,
+
+              deliveryArea:
+                settings.deliveryArea?.trim() ||
+                DEFAULT_CHECKOUT_SETTINGS.deliveryArea,
+
+              deliveryTime:
+                settings.deliveryTime?.trim() ||
+                DEFAULT_CHECKOUT_SETTINGS.deliveryTime,
+
+              codText:
+                settings.codText?.trim() ||
+                DEFAULT_CHECKOUT_SETTINGS.codText,
+
+              collectionPoint:
+                settings.collectionPoint?.trim() ||
+                DEFAULT_CHECKOUT_SETTINGS.collectionPoint,
+
+              orderInstruction:
+                settings.orderInstruction?.trim() ||
+                DEFAULT_CHECKOUT_SETTINGS.orderInstruction,
+
+              returnPolicy:
+                settings.returnPolicy?.trim() ||
+                DEFAULT_CHECKOUT_SETTINGS.returnPolicy,
+
+              warrantyText:
+                settings.warrantyText?.trim() ||
+                DEFAULT_CHECKOUT_SETTINGS.warrantyText,
+
+              soldByText:
+                settings.soldByText?.trim() ||
+                DEFAULT_CHECKOUT_SETTINGS.soldByText,
+
+              isActive:
+                settings.isActive ??
+                DEFAULT_CHECKOUT_SETTINGS.isActive,
+            };
+
+            setCheckoutSettings(
+              mergedSettings
+            );
+          }
+        } catch (error) {
+          console.error(
+            "Checkout settings storefront load error:",
+            error
+          );
+        }
+      };
+
+    void loadCheckoutSettings();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
 
   /* =======================================================
      ACTIVE PRODUCT TAB
@@ -1561,121 +1759,121 @@ export default function ProductDetailsClient({
               ================================================= */}
 
               <div
-  className="
-    mt-4
-    grid
-    grid-cols-1
-    gap-3
-    sm:grid-cols-2
-  "
->
-  {/* CALL */}
+                className="
+                  mt-4
+                  grid
+                  grid-cols-1
+                  gap-3
+                  sm:grid-cols-2
+                "
+              >
+                <a
+                  href={getTelHref(
+                    checkoutSettings.supportPhone
+                  )}
+                  className="
+                    group
+                    flex
+                    items-center
+                    gap-3
+                    rounded-lg
+                    border
+                    border-gray-200
+                    bg-white
+                    px-4
+                    py-3
+                    transition-all
+                    duration-300
+                    hover:border-[#FF6900]
+                    hover:shadow-sm
+                  "
+                >
+                  <div
+                    className="
+                      flex
+                      h-10
+                      w-10
+                      shrink-0
+                      items-center
+                      justify-center
+                      rounded-full
+                      bg-orange-50
+                      text-[#FF6900]
+                      transition-colors
+                      group-hover:bg-[#FF6900]
+                      group-hover:text-white
+                    "
+                  >
+                    <Phone size={18} />
+                  </div>
 
-  <a
-    href="tel:+8801786373379"
-    className="
-      group
-      flex
-      items-center
-      gap-3
-      rounded-lg
-      border
-      border-gray-200
-      bg-white
-      px-4
-      py-3
-      transition-all
-      duration-300
-      hover:border-[#FF6900]
-      hover:shadow-sm
-    "
-  >
-    <div
-      className="
-        flex
-        h-10
-        w-10
-        shrink-0
-        items-center
-        justify-center
-        rounded-full
-        bg-orange-50
-        text-[#FF6900]
-        transition-colors
-        group-hover:bg-[#FF6900]
-        group-hover:text-white
-      "
-    >
-      <Phone size={18} />
-    </div>
+                  <span
+                    className="
+                      text-sm
+                      font-bold
+                      text-[#0B1F3A]
+                      transition-colors
+                      group-hover:text-[#FF6900]
+                    "
+                  >
+                    {checkoutSettings.supportPhone}
+                  </span>
+                </a>
 
-    <span
-      className="
-        text-sm
-        font-bold
-        text-[#0B1F3A]
-        transition-colors
-        group-hover:text-[#FF6900]
-      "
-    >
-      +880 1786373379
-    </span>
-  </a>
+                <a
+                  href={getWhatsAppHref(
+                    checkoutSettings.whatsappNumber
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="
+                    group
+                    flex
+                    items-center
+                    gap-3
+                    rounded-lg
+                    border
+                    border-gray-200
+                    bg-white
+                    px-4
+                    py-3
+                    transition-all
+                    duration-300
+                    hover:border-green-500
+                    hover:shadow-sm
+                  "
+                >
+                  <div
+                    className="
+                      flex
+                      h-10
+                      w-10
+                      shrink-0
+                      items-center
+                      justify-center
+                      rounded-full
+                      bg-green-50
+                      text-green-600
+                      transition-colors
+                      group-hover:bg-green-600
+                      group-hover:text-white
+                    "
+                  >
+                    <MessageCircle size={19} />
+                  </div>
 
-  {/* WHATSAPP */}
-
-  <a
-    href="https://wa.me/8801786373379"
-    target="_blank"
-    rel="noopener noreferrer"
-    className="
-      group
-      flex
-      items-center
-      gap-3
-      rounded-lg
-      border
-      border-gray-200
-      bg-white
-      px-4
-      py-3
-      transition-all
-      duration-300
-      hover:border-green-500
-      hover:shadow-sm
-    "
-  >
-    <div
-      className="
-        flex
-        h-10
-        w-10
-        shrink-0
-        items-center
-        justify-center
-        rounded-full
-        bg-green-50
-        text-green-600
-        transition-colors
-        group-hover:bg-green-600
-        group-hover:text-white
-      "
-    >
-      <MessageCircle size={19} />
-    </div>
-
-    <span
-      className="
-        text-sm
-        font-bold
-        text-[#0B1F3A]
-        transition-colors
-        group-hover:text-green-600
-      "
-    >
-      +880 1786373379
-    </span>
-  </a>
+                  <span
+                    className="
+                      text-sm
+                      font-bold
+                      text-[#0B1F3A]
+                      transition-colors
+                      group-hover:text-green-600
+                    "
+                  >
+                    {checkoutSettings.whatsappNumber}
+                  </span>
+                </a>
               </div>
 
               {/* ORDER INFO */}
@@ -1691,10 +1889,8 @@ export default function ProductDetailsClient({
                   text-white
                 "
               >
-                <p className="text-sm font-medium leading-8 sm:text-base text-justify">
-                  অর্ডার করতে Buy Now-এ ক্লিক করুন অথবা
-                  সরাসরি WhatsApp-এ যোগাযোগ করে আপনার
-                  কাঙ্ক্ষিত প্রোডাক্ট নিশ্চিত করুন।
+                <p className="whitespace-pre-line text-sm font-medium leading-8 sm:text-base text-justify">
+                  {checkoutSettings.orderInstruction}
                 </p>
               </div>
 
@@ -1749,13 +1945,8 @@ export default function ProductDetailsClient({
 
                 {isDeliveryOpen && (
                   <div className="border-t border-gray-200 px-4 py-4">
-                    <p className="text-sm font-medium leading-7 text-[#333333] sm:text-[15px] sm:leading-8">
-                      ডেলিভারির জন্য ঢাকার ভিতরে সাধারণত ১ - ২
-                      কর্মদিবস এবং ঢাকার বাইরে ২ - ৩ কর্মদিবস
-                      সময় লাগতে পারে। তবে লোকেশন, কুরিয়ার
-                      সার্ভিস এবং নিকটবর্তী হাবের কার্যক্রমের
-                      ওপর নির্ভর করে-সময়সীমা কিছুটা পরিবর্তিত
-                      হতে পারে।
+                    <p className="whitespace-pre-line text-sm font-medium leading-7 text-[#333333] sm:text-[15px] sm:leading-8">
+                      {checkoutSettings.deliveryTime}
                     </p>
                   </div>
                 )}
@@ -1810,9 +2001,7 @@ export default function ProductDetailsClient({
                       </p>
 
                       <p className="mt-1 text-xs leading-5 text-gray-500">
-                        Dhaka: 1-2 working days
-                        <br />
-                        Outside Dhaka: 2-3 working days
+                        {checkoutSettings.deliveryTime}
                       </p>
                     </div>
                   </div>
@@ -1911,7 +2100,7 @@ export default function ProductDetailsClient({
                     </p>
 
                     <p className="font-bold text-[#0B1F3A]">
-                      TownMela
+                      {checkoutSettings.soldByText}
                     </p>
                   </div>
                 </div>

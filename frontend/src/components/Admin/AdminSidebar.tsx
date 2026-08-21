@@ -22,6 +22,7 @@ import {
   PanelBottom,
   PanelTop,
   Settings,
+  ShoppingCart,
   Tags,
   TicketPercent,
   TrendingUp,
@@ -181,6 +182,22 @@ const menuItems:
 
     icon:
       GalleryHorizontalEnd,
+
+    roles: [
+      "admin",
+      "superadmin",
+    ],
+  },
+
+  {
+    label:
+      "Checkout Management",
+
+    href:
+      "/admin/checkout-management",
+
+    icon:
+      ShoppingCart,
 
     roles: [
       "admin",

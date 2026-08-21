@@ -1,41 +1,37 @@
 "use strict";
 
 const mongoose = require("mongoose");
-
-const FooterSetting = require(
-  "../models/FooterSetting"
-);
-
-/* =========================================================
-   DEFAULT FOOTER SETTINGS
-========================================================= */
+const FooterSetting = require("../models/FooterSetting");
 
 const DEFAULT_FOOTER_SETTINGS = {
   businessName: "",
   logo: "",
   description: "",
-
   phone: "",
   email: "",
   address: "",
-
   facebook: "",
   instagram: "",
   youtube: "",
   linkedin: "",
-
+  additionalSocialLinks: [],
+  backgroundImage: "/images/real-dhaka.webp",
+  popularCategoryHeading: "Popular Category",
+  popularCategoryLinks: [],
+  showPopularCategory: true,
+  customerInfoHeading: "Customer Info",
+  customerInfoLinks: [],
+  showCustomerInfo: true,
+  quickNavigationHeading: "Quick Navigation",
+  quickNavigationLinks: [],
+  showQuickNavigation: true,
+  googleMapHeading: "Find us on Google Map",
+  googleMapCtaText: "Find us on Google map",
   googleMapUrl: "",
-
-  footerLinks: [],
-
+  showGoogleMap: true,
   copyrightText: "",
-
   isActive: true,
 };
-
-/* =========================================================
-   ERROR HELPER
-========================================================= */
 
 const createError = (
   message,
@@ -43,28 +39,15 @@ const createError = (
   code = "FOOTER_SETTING_ERROR"
 ) => {
   const error = new Error(message);
-
-  error.statusCode =
-    statusCode;
-
-  error.code =
-    code;
-
+  error.statusCode = statusCode;
+  error.code = code;
   return error;
 };
 
-/* =========================================================
-   HELPERS
-========================================================= */
-
-const ensureTenantId = (
-  tenantId
-) => {
+const ensureTenantId = (tenantId) => {
   if (
     !tenantId ||
-    !mongoose.Types.ObjectId.isValid(
-      tenantId
-    )
+    !mongoose.Types.ObjectId.isValid(tenantId)
   ) {
     throw createError(
       "Valid tenant ID is required",
@@ -76,68 +59,51 @@ const ensureTenantId = (
   return tenantId;
 };
 
-const normalizeString = (
-  value
-) => {
-  if (
-    typeof value !== "string"
-  ) {
-    return "";
-  }
+const normalizeString = (value) =>
+  typeof value === "string"
+    ? value.trim()
+    : "";
 
-  return value.trim();
-};
-
-const normalizeFooterLinks = (
-  links
-) => {
+const normalizeFooterLinks = (links) => {
   if (!Array.isArray(links)) {
     return [];
   }
 
   return links
-    .map(
-      (
-        item,
-        index
-      ) => ({
-        label:
-          normalizeString(
-            item?.label
-          ),
-
-        url:
-          normalizeString(
-            item?.url
-          ),
-
-        enabled:
-          item?.enabled !== false,
-
-        order:
-          Number.isFinite(
-            Number(item?.order)
-          )
-            ? Number(
-                item.order
-              )
-            : index + 1,
-      })
-    )
-    .filter(
-      (item) =>
-        item.label &&
-        item.url
-    )
-    .sort(
-      (a, b) =>
-        a.order - b.order
-    );
+    .map((item, index) => ({
+      label: normalizeString(item?.label),
+      url: normalizeString(item?.url),
+      enabled: item?.enabled !== false,
+      order:
+        Number.isFinite(Number(item?.order))
+          ? Number(item.order)
+          : index + 1,
+    }))
+    .filter((item) => item.label && item.url)
+    .sort((a, b) => a.order - b.order);
 };
 
-/* =========================================================
-   BUILD UPDATE PAYLOAD
-========================================================= */
+const normalizeAdditionalSocialLinks = (links) => {
+  if (!Array.isArray(links)) {
+    return [];
+  }
+
+  return links
+    .map((item, index) => ({
+      label: normalizeString(item?.label),
+      url: normalizeString(item?.url),
+      iconText:
+        normalizeString(item?.iconText).slice(0, 12) ||
+        "•",
+      enabled: item?.enabled !== false,
+      order:
+        Number.isFinite(Number(item?.order))
+          ? Number(item.order)
+          : index + 1,
+    }))
+    .filter((item) => item.label && item.url)
+    .sort((a, b) => a.order - b.order);
+};
 
 const buildUpdatePayload = (
   payload = {},
@@ -145,278 +111,164 @@ const buildUpdatePayload = (
 ) => {
   const update = {};
 
-  if (
-    Object.prototype.hasOwnProperty.call(
-      payload,
-      "businessName"
-    )
-  ) {
-    update.businessName =
-      normalizeString(
-        payload.businessName
-      );
+  const stringFields = [
+    "businessName",
+    "logo",
+    "description",
+    "phone",
+    "email",
+    "address",
+    "facebook",
+    "instagram",
+    "youtube",
+    "linkedin",
+    "backgroundImage",
+    "popularCategoryHeading",
+    "customerInfoHeading",
+    "quickNavigationHeading",
+    "googleMapHeading",
+    "googleMapCtaText",
+    "googleMapUrl",
+    "copyrightText",
+  ];
+
+  for (const field of stringFields) {
+    if (
+      Object.prototype.hasOwnProperty.call(
+        payload,
+        field
+      )
+    ) {
+      update[field] =
+        normalizeString(payload[field]);
+    }
   }
 
   if (
     Object.prototype.hasOwnProperty.call(
-      payload,
-      "logo"
-    )
-  ) {
-    update.logo =
-      normalizeString(
-        payload.logo
-      );
-  }
-
-  if (
-    Object.prototype.hasOwnProperty.call(
-      payload,
-      "description"
-    )
-  ) {
-    update.description =
-      normalizeString(
-        payload.description
-      );
-  }
-
-  if (
-    Object.prototype.hasOwnProperty.call(
-      payload,
-      "phone"
-    )
-  ) {
-    update.phone =
-      normalizeString(
-        payload.phone
-      );
-  }
-
-  if (
-    Object.prototype.hasOwnProperty.call(
-      payload,
+      update,
       "email"
     )
   ) {
-    update.email =
-      normalizeString(
-        payload.email
-      ).toLowerCase();
+    update.email = update.email.toLowerCase();
+  }
+
+  for (const field of [
+    "popularCategoryLinks",
+    "customerInfoLinks",
+    "quickNavigationLinks",
+  ]) {
+    if (
+      Object.prototype.hasOwnProperty.call(
+        payload,
+        field
+      )
+    ) {
+      update[field] =
+        normalizeFooterLinks(payload[field]);
+    }
   }
 
   if (
     Object.prototype.hasOwnProperty.call(
       payload,
-      "address"
+      "additionalSocialLinks"
     )
   ) {
-    update.address =
-      normalizeString(
-        payload.address
+    update.additionalSocialLinks =
+      normalizeAdditionalSocialLinks(
+        payload.additionalSocialLinks
       );
   }
 
-  if (
-    Object.prototype.hasOwnProperty.call(
-      payload,
-      "facebook"
-    )
-  ) {
-    update.facebook =
-      normalizeString(
-        payload.facebook
-      );
-  }
-
-  if (
-    Object.prototype.hasOwnProperty.call(
-      payload,
-      "instagram"
-    )
-  ) {
-    update.instagram =
-      normalizeString(
-        payload.instagram
-      );
-  }
-
-  if (
-    Object.prototype.hasOwnProperty.call(
-      payload,
-      "youtube"
-    )
-  ) {
-    update.youtube =
-      normalizeString(
-        payload.youtube
-      );
-  }
-
-  if (
-    Object.prototype.hasOwnProperty.call(
-      payload,
-      "linkedin"
-    )
-  ) {
-    update.linkedin =
-      normalizeString(
-        payload.linkedin
-      );
-  }
-
-  if (
-    Object.prototype.hasOwnProperty.call(
-      payload,
-      "googleMapUrl"
-    )
-  ) {
-    update.googleMapUrl =
-      normalizeString(
-        payload.googleMapUrl
-      );
-  }
-
-  if (
-    Object.prototype.hasOwnProperty.call(
-      payload,
-      "footerLinks"
-    )
-  ) {
-    update.footerLinks =
-      normalizeFooterLinks(
-        payload.footerLinks
-      );
-  }
-
-  if (
-    Object.prototype.hasOwnProperty.call(
-      payload,
-      "copyrightText"
-    )
-  ) {
-    update.copyrightText =
-      normalizeString(
-        payload.copyrightText
-      );
-  }
-
-  if (
-    Object.prototype.hasOwnProperty.call(
-      payload,
-      "isActive"
-    )
-  ) {
-    update.isActive =
-      Boolean(
-        payload.isActive
-      );
+  for (const field of [
+    "showPopularCategory",
+    "showCustomerInfo",
+    "showQuickNavigation",
+    "showGoogleMap",
+    "isActive",
+  ]) {
+    if (
+      Object.prototype.hasOwnProperty.call(
+        payload,
+        field
+      )
+    ) {
+      update[field] = Boolean(payload[field]);
+    }
   }
 
   if (
     userId &&
-    mongoose.Types.ObjectId.isValid(
-      userId
-    )
+    mongoose.Types.ObjectId.isValid(userId)
   ) {
-    update.updatedBy =
-      userId;
+    update.updatedBy = userId;
   }
 
   return update;
 };
 
-/* =========================================================
-   GET FOOTER SETTINGS
-========================================================= */
+const getFooterSetting = async ({ tenantId }) => {
+  ensureTenantId(tenantId);
 
-const getFooterSetting =
-  async ({
-    tenantId,
-  }) => {
-    ensureTenantId(
-      tenantId
-    );
+  const setting =
+    await FooterSetting.findOne({
+      tenant: tenantId,
+    }).lean();
 
-    const setting =
-      await FooterSetting.findOne({
-        tenant:
-          tenantId,
-      }).lean();
-
-    if (!setting) {
-      return {
-        tenant:
-          tenantId,
-
-        ...DEFAULT_FOOTER_SETTINGS,
-      };
-    }
-
+  if (!setting) {
     return {
+      tenant: tenantId,
       ...DEFAULT_FOOTER_SETTINGS,
-      ...setting,
-
-      footerLinks:
-        Array.isArray(
-          setting.footerLinks
-        )
-          ? setting.footerLinks
-          : [],
     };
+  }
+
+  return {
+    ...DEFAULT_FOOTER_SETTINGS,
+    ...setting,
+    additionalSocialLinks:
+      Array.isArray(setting.additionalSocialLinks)
+        ? setting.additionalSocialLinks
+        : [],
+    popularCategoryLinks:
+      Array.isArray(setting.popularCategoryLinks)
+        ? setting.popularCategoryLinks
+        : [],
+    customerInfoLinks:
+      Array.isArray(setting.customerInfoLinks)
+        ? setting.customerInfoLinks
+        : [],
+    quickNavigationLinks:
+      Array.isArray(setting.quickNavigationLinks)
+        ? setting.quickNavigationLinks
+        : [],
   };
+};
 
-/* =========================================================
-   UPDATE / CREATE FOOTER SETTINGS
-========================================================= */
+const updateFooterSetting = async ({
+  tenantId,
+  userId = null,
+  payload = {},
+}) => {
+  ensureTenantId(tenantId);
 
-const updateFooterSetting =
-  async ({
-    tenantId,
-    userId = null,
-    payload = {},
-  }) => {
-    ensureTenantId(
-      tenantId
-    );
-
-    const updatePayload =
-      buildUpdatePayload(
-        payload,
-        userId
-      );
-
-    const setting =
-      await FooterSetting.findOneAndUpdate(
-        {
-          tenant:
-            tenantId,
-        },
-
-        {
-          $set:
-            updatePayload,
-
-          $setOnInsert: {
-            tenant:
-              tenantId,
-          },
-        },
-
-        {
-          new: true,
-          upsert: true,
-          runValidators: true,
-          setDefaultsOnInsert: true,
-        }
-      ).lean();
-
-    return setting;
-  };
-
-/* =========================================================
-   EXPORTS
-========================================================= */
+  return FooterSetting.findOneAndUpdate(
+    { tenant: tenantId },
+    {
+      $set:
+        buildUpdatePayload(payload, userId),
+      $setOnInsert: {
+        tenant: tenantId,
+      },
+    },
+    {
+      new: true,
+      upsert: true,
+      runValidators: true,
+      setDefaultsOnInsert: true,
+    }
+  ).lean();
+};
 
 module.exports = {
   getFooterSetting,

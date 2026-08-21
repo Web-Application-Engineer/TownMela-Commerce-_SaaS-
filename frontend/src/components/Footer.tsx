@@ -3,13 +3,107 @@
 import Link from "next/link";
 
 import {
-  useMemo,
-  useState,
-} from "react";
+  ChevronRight,
+  Mail,
+  MapPin,
+  Phone,
+} from "lucide-react";
+
+import { useMemo } from "react";
 
 import {
   useFooterSettings,
 } from "@/src/context/FooterSettingsContext";
+
+/* =========================================================
+   GOOGLE MAP URL HELPERS
+========================================================= */
+
+function extractGoogleMapUrl(
+  value: string,
+) {
+  const trimmed =
+    value.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  /*
+   * Footer Management may contain either:
+   * - a normal Google Maps URL
+   * - the full iframe embed code copied from Google Maps
+   *
+   * If iframe code is supplied, read only its src value.
+   */
+  const iframeSrcMatch =
+    trimmed.match(
+      /<iframe[^>]+src=["']([^"']+)["']/i,
+    );
+
+  return (
+    iframeSrcMatch?.[1] ||
+    trimmed
+  );
+}
+
+function getGoogleMapOpenUrl(
+  mapValue: string,
+  businessName: string,
+  address: string,
+) {
+  const normalizedUrl =
+    extractGoogleMapUrl(
+      mapValue,
+    );
+
+  if (!normalizedUrl) {
+    return "";
+  }
+
+  /*
+   * Google /maps/embed URLs must stay inside an iframe.
+   * For our existing yellow card, open a normal Google Maps
+   * search page instead so the previous layout stays unchanged.
+   */
+  if (
+    normalizedUrl.includes(
+      "google.com/maps/embed",
+    )
+  ) {
+    let placeName = "";
+
+    try {
+      const decoded =
+        decodeURIComponent(
+          normalizedUrl,
+        );
+
+      const placeMatch =
+        decoded.match(
+          /!2s([^!]+)/,
+        );
+
+      placeName =
+        placeMatch?.[1]?.trim() ||
+        "";
+    } catch {
+      placeName = "";
+    }
+
+    const query =
+      placeName ||
+      businessName ||
+      address ||
+      "Google Maps";
+
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+      query,
+    )}`;
+  }
+
+  return normalizedUrl;
+}
 
 /* =========================================================
    FOOTER
@@ -21,25 +115,8 @@ export default function Footer() {
     isLoading,
   } = useFooterSettings();
 
-  const [
-    formData,
-    setFormData,
-  ] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    message: "",
-  });
 
-  const [
-    isSubmitting,
-    setIsSubmitting,
-  ] = useState(false);
 
-  const [
-    formMessage,
-    setFormMessage,
-  ] = useState("");
 
   /* =======================================================
      DYNAMIC FOOTER DATA
@@ -70,8 +147,11 @@ export default function Footer() {
     "";
 
   const googleMapUrl =
-    settings.googleMapUrl?.trim() ||
-    "";
+    getGoogleMapOpenUrl(
+      settings.googleMapUrl || "",
+      businessName,
+      address,
+    );
 
   const copyrightText =
     settings.copyrightText?.trim() ||
@@ -83,8 +163,8 @@ export default function Footer() {
 
   const socialLinks =
     useMemo(
-      () =>
-        [
+      () => {
+        const builtInLinks = [
           phone
             ? {
                 icon: "📞",
@@ -93,46 +173,47 @@ export default function Footer() {
                   "",
                 )}`,
                 name: "Phone",
+                order: 1,
               }
             : null,
 
-          settings.facebook
-            ?.trim()
+          settings.facebook?.trim()
             ? {
                 icon: "f",
                 link:
                   settings.facebook.trim(),
                 name: "Facebook",
+                order: 2,
               }
             : null,
 
-          settings.instagram
-            ?.trim()
+          settings.instagram?.trim()
             ? {
                 icon: "◎",
                 link:
                   settings.instagram.trim(),
                 name: "Instagram",
+                order: 3,
               }
             : null,
 
-          settings.linkedin
-            ?.trim()
+          settings.linkedin?.trim()
             ? {
                 icon: "in",
                 link:
                   settings.linkedin.trim(),
                 name: "LinkedIn",
+                order: 4,
               }
             : null,
 
-          settings.youtube
-            ?.trim()
+          settings.youtube?.trim()
             ? {
                 icon: "▶",
                 link:
                   settings.youtube.trim(),
                 name: "YouTube",
+                order: 5,
               }
             : null,
         ].filter(
@@ -142,26 +223,67 @@ export default function Footer() {
             icon: string;
             link: string;
             name: string;
+            order: number;
           } =>
             Boolean(item),
-        ),
+        );
+
+        const extraLinks =
+          Array.isArray(
+            settings.additionalSocialLinks,
+          )
+            ? settings.additionalSocialLinks
+                .filter(
+                  (item) =>
+                    item.enabled &&
+                    item.label?.trim() &&
+                    item.url?.trim(),
+                )
+                .map(
+                  (item) => ({
+                    icon:
+                      item.iconText?.trim() ||
+                      "•",
+                    link:
+                      item.url.trim(),
+                    name:
+                      item.label.trim(),
+                    order:
+                      Number(
+                        item.order || 0,
+                      ) + 5,
+                  }),
+                )
+            : [];
+
+        return [
+          ...builtInLinks,
+          ...extraLinks,
+        ].sort(
+          (a, b) =>
+            a.order - b.order,
+        );
+      },
       [
         phone,
         settings.facebook,
         settings.instagram,
         settings.linkedin,
         settings.youtube,
+        settings.additionalSocialLinks,
       ],
     );
 
+
+
   /* =======================================================
-     FOOTER LINKS
+     DYNAMIC FOOTER MENU LINKS
   ======================================================= */
 
-  const footerLinks =
+  const popularCategories =
     useMemo(
       () =>
-        settings.footerLinks
+        settings.popularCategoryLinks
           .filter(
             (item) =>
               item.enabled &&
@@ -169,152 +291,54 @@ export default function Footer() {
               item.url?.trim(),
           )
           .sort(
-            (
-              first,
-              second,
-            ) =>
-              Number(
-                first.order ||
-                  0,
-              ) -
-              Number(
-                second.order ||
-                  0,
-              ),
+            (a, b) =>
+              Number(a.order || 0) -
+              Number(b.order || 0),
           ),
       [
-        settings.footerLinks,
+        settings.popularCategoryLinks,
       ],
     );
 
-  /* =======================================================
-     CONTACT FORM
-  ======================================================= */
-
-  const handleChange = (
-    event:
-      React.ChangeEvent<
-        | HTMLInputElement
-        | HTMLTextAreaElement
-      >,
-  ) => {
-    const {
-      name,
-      value,
-    } = event.target;
-
-    setFormData(
-      (
-        previous,
-      ) => ({
-        ...previous,
-        [name]: value,
-      }),
+  const customerInfoLinks =
+    useMemo(
+      () =>
+        settings.customerInfoLinks
+          .filter(
+            (item) =>
+              item.enabled &&
+              item.label?.trim() &&
+              item.url?.trim(),
+          )
+          .sort(
+            (a, b) =>
+              Number(a.order || 0) -
+              Number(b.order || 0),
+          ),
+      [
+        settings.customerInfoLinks,
+      ],
     );
-  };
 
-  const handleSubmit =
-    async (
-      event:
-        React.FormEvent<HTMLFormElement>,
-    ) => {
-      event.preventDefault();
-
-      try {
-        setIsSubmitting(
-          true,
-        );
-
-        setFormMessage(
-          "",
-        );
-
-        const response =
-          await fetch(
-            "/api/contact",
-            {
-              method:
-                "POST",
-
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-
-              body:
-                JSON.stringify({
-                  name:
-                    formData.name,
-
-                  email:
-                    formData.email,
-
-                  phone:
-                    formData.phone,
-
-                  subject:
-                    "Footer Quick Contact",
-
-                  details:
-                    formData.message,
-                }),
-            },
-          );
-
-        const data =
-          await response.json();
-
-        if (
-          !response.ok ||
-          !data.success
-        ) {
-          setFormMessage(
-            data.message ||
-              "Something went wrong. Please try again.",
-          );
-
-          return;
-        }
-
-        setFormMessage(
-          "Message sent successfully!",
-        );
-
-        setFormData({
-          name: "",
-          email: "",
-          phone: "",
-          message: "",
-        });
-      } catch (error) {
-        console.error(
-          "Footer contact form error:",
-          error,
-        );
-
-        setFormMessage(
-          "Failed to send message. Please try again.",
-        );
-      } finally {
-        setIsSubmitting(
-          false,
-        );
-      }
-    };
-
-  const handleReset =
-    () => {
-      setFormData({
-        name: "",
-        email: "",
-        phone: "",
-        message: "",
-      });
-
-      setFormMessage(
-        "",
-      );
-    };
+  const quickNavigationLinks =
+    useMemo(
+      () =>
+        settings.quickNavigationLinks
+          .filter(
+            (item) =>
+              item.enabled &&
+              item.label?.trim() &&
+              item.url?.trim(),
+          )
+          .sort(
+            (a, b) =>
+              Number(a.order || 0) -
+              Number(b.order || 0),
+          ),
+      [
+        settings.quickNavigationLinks,
+      ],
+    );
 
   /* =======================================================
      INACTIVE FOOTER
@@ -332,17 +356,52 @@ export default function Footer() {
   ======================================================= */
 
   return (
-    <footer className="relative ml-2 mr-2 overflow-hidden bg-black text-white">
+    <>
+      <style jsx>{`
+        @keyframes footerUnderlineLeftRight {
+          0% {
+            transform: translateX(-100%);
+            opacity: 0.35;
+          }
+
+          15% {
+            opacity: 1;
+          }
+
+          50% {
+            transform: translateX(600%);
+            opacity: 1;
+          }
+
+          85% {
+            opacity: 1;
+          }
+
+          100% {
+            transform: translateX(-100%);
+            opacity: 0.35;
+          }
+        }
+
+        .footer-heading-underline {
+          animation: footerUnderlineLeftRight 5.4s ease-in-out infinite;
+          will-change: transform;
+        }
+      `}</style>
+
+      <footer className="relative ml-2 mr-2 overflow-hidden bg-black text-white">
       <div
         className="relative bg-cover bg-center bg-no-repeat"
         style={{
           backgroundImage:
-            "url('/images/real-dhaka.webp')",
+            settings.backgroundImage?.trim()
+              ? `url("${settings.backgroundImage.trim()}")`
+              : "url('/images/real-dhaka.webp')",
         }}
       >
         <div className="absolute inset-0 bg-black/70" />
 
-        <div className="relative z-10 mx-auto grid max-w-[1450px] grid-cols-1 gap-12 py-[54px] md:grid-cols-2 lg:grid-cols-[300px_360px_360px] lg:justify-between">
+        <div className="relative z-10 mx-auto grid max-w-[1450px] grid-cols-1 gap-y-10 py-[54px] md:grid-cols-2 md:gap-x-10 lg:grid-cols-3 xl:grid-cols-[350px_220px_200px_200px_280px] xl:gap-x-0 xl:justify-between">
           {/* =================================================
               CONTACT / BUSINESS INFORMATION
           ================================================= */}
@@ -380,59 +439,63 @@ export default function Footer() {
               </p>
             )}
 
-            <h3 className="mb-6 text-[18px]">
-              Contact info
-            </h3>
 
-            <div className="space-y-4 text-[14px] leading-[1.65]">
+            <div className="space-y-5 text-[14px] leading-[1.65]">
               {address && (
-                <div>
-                  <h4 className="font-bold">
-                    Address
-                  </h4>
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#f7931a]/70 bg-black/30 text-[#f7931a]">
+                    <MapPin
+                      size={16}
+                      strokeWidth={2.2}
+                    />
+                  </span>
 
-                  <p>
-                    {
-                      address
-                    }
+                  <p className="pt-1 text-white/90">
+                    {address}
                   </p>
                 </div>
               )}
 
               {email && (
-                <div>
-                  <h4 className="font-bold">
-                    Email
-                  </h4>
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#f7931a]/70 bg-black/30 text-[#f7931a]">
+                    <Mail
+                      size={16}
+                      strokeWidth={2.2}
+                    />
+                  </span>
 
-                  <Link
-                    href={`mailto:${email}`}
-                    className="transition hover:text-[#f7931a]"
-                  >
-                    {
-                      email
-                    }
-                  </Link>
+                  <div className="min-w-0 pt-1">
+                    <Link
+                      href={`mailto:${email}`}
+                      className="break-all text-white/90 transition hover:text-[#f7931a]"
+                    >
+                      {email}
+                    </Link>
+                  </div>
                 </div>
               )}
 
               {phone && (
-                <div>
-                  <h4 className="font-bold">
-                    Mobile
-                  </h4>
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#f7931a]/70 bg-black/30 text-[#f7931a]">
+                    <Phone
+                      size={16}
+                      strokeWidth={2.2}
+                    />
+                  </span>
 
-                  <Link
-                    href={`tel:${phone.replace(
-                      /\s+/g,
-                      "",
-                    )}`}
-                    className="transition hover:text-[#f7931a]"
-                  >
-                    {
-                      phone
-                    }
-                  </Link>
+                  <div className="min-w-0 pt-1">
+                    <Link
+                      href={`tel:${phone.replace(
+                        /\s+/g,
+                        "",
+                      )}`}
+                      className="text-white/90 transition hover:text-[#f7931a]"
+                    >
+                      {phone}
+                    </Link>
+                  </div>
                 </div>
               )}
 
@@ -467,14 +530,22 @@ export default function Footer() {
                         item.link
                       }
                       target={
-                        item.name ===
-                        "Phone"
+                        item.link.startsWith(
+                          "tel:",
+                        ) ||
+                        item.link.startsWith(
+                          "mailto:",
+                        )
                           ? undefined
                           : "_blank"
                       }
                       rel={
-                        item.name ===
-                        "Phone"
+                        item.link.startsWith(
+                          "tel:",
+                        ) ||
+                        item.link.startsWith(
+                          "mailto:",
+                        )
                           ? undefined
                           : "noopener noreferrer"
                       }
@@ -495,158 +566,146 @@ export default function Footer() {
               </div>
             )}
 
-            {/* ===============================================
-                DYNAMIC FOOTER LINKS
-            =============================================== */}
-
-            {footerLinks.length >
-              0 && (
-              <div className="mt-6">
-                <h4 className="mb-3 text-sm font-bold">
-                  Useful Links
-                </h4>
-
-                <div className="flex flex-wrap gap-x-4 gap-y-2">
-                  {footerLinks.map(
-                    (
-                      item,
-                    ) => (
-                      <Link
-                        key={`${item.label}-${item.url}`}
-                        href={
-                          item.url
-                        }
-                        className="text-[13px] text-white/75 transition hover:text-[#f7931a]"
-                      >
-                        {
-                          item.label
-                        }
-                      </Link>
-                    ),
-                  )}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* =================================================
-              QUICK CONTACT
+              POPULAR CATEGORY
           ================================================= */}
 
+          {settings.showPopularCategory && (
           <div>
-            <h3 className="mb-6 text-[18px]">
-              Quick Contact
-            </h3>
+            <div className="mb-6">
+              <h3 className="text-[18px] font-semibold">
+                {settings.popularCategoryHeading}
+              </h3>
 
-            <form
-              onSubmit={
-                handleSubmit
-              }
-              className="space-y-4 rounded-[10px] border border-[#524702] p-2"
-            >
-              <input
-                required
-                type="text"
-                name="name"
-                value={
-                  formData.name
-                }
-                onChange={
-                  handleChange
-                }
-                placeholder="Name *"
-                className="w-full border-b border-[#927800] bg-transparent px-4 py-2 text-[13px] outline-none placeholder:text-white/90"
-              />
-
-              <input
-                type="email"
-                name="email"
-                value={
-                  formData.email
-                }
-                onChange={
-                  handleChange
-                }
-                placeholder="E-mail"
-                className="w-full border-b border-[#927800] bg-transparent px-4 py-2 text-[13px] outline-none placeholder:text-white/90"
-              />
-
-              <input
-                required
-                type="tel"
-                name="phone"
-                value={
-                  formData.phone
-                }
-                onChange={
-                  handleChange
-                }
-                placeholder="Phone *"
-                className="w-full border-b border-[#927800] bg-transparent px-4 py-2 text-[13px] outline-none placeholder:text-white/90"
-              />
-
-              <textarea
-                rows={4}
-                name="message"
-                value={
-                  formData.message
-                }
-                onChange={
-                  handleChange
-                }
-                placeholder="Message"
-                className="w-full resize-none border-b border-[#927800] bg-transparent px-4 py-4 text-[13px] outline-none placeholder:text-white/90"
-              />
-
-              <div className="flex items-center justify-between">
-                <button
-                  type="submit"
-                  disabled={
-                    isSubmitting
-                  }
-                  className="cursor-pointer rounded-[3px] bg-amber-300 px-4 py-2 text-[12px] font-bold text-[#122855] transition duration-300 hover:bg-[#D3222E] hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isSubmitting
-                    ? "Sending..."
-                    : "Submit"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={
-                    handleReset
-                  }
-                  className="text-[12px] text-white/60"
-                >
-                  clear ✖
-                </button>
+              <div className="mt-2 h-[1px] w-30 overflow-hidden rounded-full bg-white/15">
+                <div className="footer-heading-underline h-full w-5 rounded-full bg-[#f7931a]" />
               </div>
+            </div>
 
-              {formMessage && (
-                <p
-                  className={`px-1 text-[12px] ${
-                    formMessage ===
-                    "Message sent successfully!"
-                      ? "text-green-300"
-                      : "text-red-300"
-                  }`}
-                >
-                  {
-                    formMessage
-                  }
-                </p>
+            <nav className="space-y-3">
+              {popularCategories.map(
+                (item) => (
+                  <Link
+                    key={`${item.label}-${item.url}`}
+                    href={item.url}
+                    className="group flex items-center gap-2.5 text-[14px] text-white/80 transition hover:text-[#f7931a]"
+                  >
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/5 text-[#f7931a] transition group-hover:border-[#f7931a] group-hover:bg-[#f7931a] group-hover:text-black">
+                      <ChevronRight
+                        size={12}
+                        strokeWidth={2.4}
+                      />
+                    </span>
+
+                    <span>
+                      {item.label}
+                    </span>
+                  </Link>
+                ),
               )}
-            </form>
+            </nav>
           </div>
+          )}
+
+          {/* =================================================
+              CUSTOMER INFO
+          ================================================= */}
+
+          {settings.showCustomerInfo && (
+          <div>
+            <div className="mb-6">
+              <h3 className="text-[18px] font-semibold">
+                {settings.customerInfoHeading}
+              </h3>
+
+              <div className="mt-2 h-[1px] w-30 overflow-hidden rounded-full bg-white/15">
+                <div className="footer-heading-underline h-full w-5 rounded-full bg-[#f7931a]" />
+              </div>
+            </div>
+
+            <nav className="space-y-3">
+              {customerInfoLinks.map(
+                (item) => (
+                  <Link
+                    key={`${item.label}-${item.url}`}
+                    href={item.url}
+                    className="group flex items-center gap-2.5 text-[14px] text-white/80 transition hover:text-[#f7931a]"
+                  >
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/5 text-[#f7931a] transition group-hover:border-[#f7931a] group-hover:bg-[#f7931a] group-hover:text-black">
+                      <ChevronRight
+                        size={12}
+                        strokeWidth={2.4}
+                      />
+                    </span>
+
+                    <span>
+                      {item.label}
+                    </span>
+                  </Link>
+                ),
+              )}
+            </nav>
+          </div>
+          )}
+
+          {/* =================================================
+              QUICK NAVIGATION
+          ================================================= */}
+
+          {settings.showQuickNavigation && (
+          <div>
+            <div className="mb-6">
+              <h3 className="text-[18px] font-semibold">
+                {settings.quickNavigationHeading}
+              </h3>
+
+              <div className="mt-2 h-[1px] w-30 overflow-hidden rounded-full bg-white/15">
+                <div className="footer-heading-underline h-full w-5 rounded-full bg-[#f7931a]" />
+              </div>
+            </div>
+
+            <nav className="space-y-3">
+              {quickNavigationLinks.map(
+                (item) => (
+                  <Link
+                    key={`${item.label}-${item.url}`}
+                    href={item.url}
+                    className="group flex items-center gap-2.5 text-[14px] text-white/80 transition hover:text-[#f7931a]"
+                  >
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/5 text-[#f7931a] transition group-hover:border-[#f7931a] group-hover:bg-[#f7931a] group-hover:text-black">
+                      <ChevronRight
+                        size={12}
+                        strokeWidth={2.4}
+                      />
+                    </span>
+
+                    <span>
+                      {item.label}
+                    </span>
+                  </Link>
+                ),
+              )}
+            </nav>
+          </div>
+          )}
 
           {/* =================================================
               GOOGLE MAP
           ================================================= */}
 
+          {settings.showGoogleMap && (
           <div>
-            <h3 className="mb-5 text-[18px]">
-              Find us on Google Map
-            </h3>
+            <div className="mb-5">
+              <h3 className="text-[18px] font-semibold">
+                {settings.googleMapHeading}
+              </h3>
+
+              <div className="mt-2 h-[1px] w-30 overflow-hidden rounded-full bg-white/15">
+                <div className="footer-heading-underline h-full w-5 rounded-full bg-[#f7931a]" />
+              </div>
+            </div>
 
             {googleMapUrl ? (
               <Link
@@ -655,14 +714,14 @@ export default function Footer() {
                 }
                 target="_blank"
                 rel="noopener noreferrer"
-                className="relative block h-[350px] overflow-hidden rounded-[5px] bg-[#bd9700]"
+                className="relative block h-[265px] w-full max-w-[280px] overflow-hidden rounded-[5px] bg-[#bd9700]"
               >
                 <div className="absolute inset-0 opacity-45">
                   <div className="h-full w-full bg-[radial-gradient(circle,#111_1.4px,transparent_1.7px)] [background-size:8px_8px]" />
                 </div>
 
-                <div className="relative z-10 mx-auto mt-[62px] flex h-[88px] w-[70px] rotate-45 items-center justify-center rounded-t-full rounded-br-full bg-[#ffdf00]">
-                  <div className="-rotate-45 flex h-[54px] w-[54px] items-center justify-center rounded-full bg-[#2b2b2b] text-[18px] font-black">
+                <div className="relative z-10 mx-auto mt-[40px] flex h-[72px] w-[58px] rotate-45 items-center justify-center rounded-t-full rounded-br-full bg-[#ffdf00]">
+                  <div className="-rotate-45 flex h-[44px] w-[44px] items-center justify-center rounded-full bg-[#2b2b2b] text-[16px] font-black">
                     {businessName
                       ? businessName
                           .slice(
@@ -674,18 +733,16 @@ export default function Footer() {
                   </div>
                 </div>
 
-                <div className="absolute bottom-8 left-7 right-7 rounded-[14px] bg-[#f3c600] px-6 py-5 shadow-xl">
+                <div className="absolute bottom-5 left-5 right-5 rounded-[12px] bg-[#f3c600] px-4 py-4 shadow-xl">
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <h4 className="text-[22px] font-medium leading-[1.05] text-black lg:text-[26px]">
-                        Find us on
-                        <br />
-                        Google map
+                      <h4 className="text-[18px] font-medium leading-[1.05] text-black lg:text-[20px]">
+                        {settings.googleMapCtaText}
                       </h4>
                     </div>
 
-                    <div className="relative flex h-[56px] w-[56px] items-center justify-center rounded-full border-[5px] border-black">
-                      <span className="text-[36px] font-light leading-none text-black">
+                    <div className="relative flex h-[46px] w-[46px] items-center justify-center rounded-full border-[4px] border-black">
+                      <span className="text-[30px] font-light leading-none text-black">
                         →
                       </span>
 
@@ -697,7 +754,7 @@ export default function Footer() {
                 </div>
               </Link>
             ) : (
-              <div className="flex h-[350px] items-center justify-center rounded-[5px] border border-white/10 bg-white/5 px-6 text-center">
+              <div className="flex h-[265px] w-full max-w-[280px] items-center justify-center rounded-[5px] border border-white/10 bg-white/5 px-6 text-center">
                 <p className="text-sm leading-6 text-white/55">
                   Google Map
                   information will be
@@ -706,6 +763,8 @@ export default function Footer() {
               </div>
             )}
           </div>
+          )}
+
         </div>
       </div>
 
@@ -752,6 +811,7 @@ export default function Footer() {
           ↑
         </button>
       </div>
-    </footer>
+      </footer>
+    </>
   );
 }

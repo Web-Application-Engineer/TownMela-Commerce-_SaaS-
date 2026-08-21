@@ -4,31 +4,28 @@ const mongoose = require("mongoose");
 
 const footerLinkSchema = new mongoose.Schema(
   {
-    label: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    url: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    enabled: {
-      type: Boolean,
-      default: true,
-    },
-
-    order: {
-      type: Number,
-      default: 0,
-    },
+    label: { type: String, required: true, trim: true },
+    url: { type: String, required: true, trim: true },
+    enabled: { type: Boolean, default: true },
+    order: { type: Number, default: 0 },
   },
+  { _id: false }
+);
+
+const additionalSocialLinkSchema = new mongoose.Schema(
   {
-    _id: false,
-  }
+    label: { type: String, required: true, trim: true },
+    url: { type: String, required: true, trim: true },
+    iconText: {
+      type: String,
+      trim: true,
+      maxlength: 12,
+      default: "•",
+    },
+    enabled: { type: Boolean, default: true },
+    order: { type: Number, default: 0 },
+  },
+  { _id: false }
 );
 
 const footerSettingSchema = new mongoose.Schema(
@@ -41,88 +38,78 @@ const footerSettingSchema = new mongoose.Schema(
       index: true,
     },
 
-    businessName: {
-      type: String,
-      trim: true,
-      default: "",
-    },
+    businessName: { type: String, trim: true, default: "" },
+    logo: { type: String, trim: true, default: "" },
+    description: { type: String, trim: true, default: "" },
 
-    logo: {
-      type: String,
-      trim: true,
-      default: "",
-    },
+    phone: { type: String, trim: true, default: "" },
+    email: { type: String, trim: true, lowercase: true, default: "" },
+    address: { type: String, trim: true, default: "" },
 
-    description: {
-      type: String,
-      trim: true,
-      default: "",
-    },
+    facebook: { type: String, trim: true, default: "" },
+    instagram: { type: String, trim: true, default: "" },
+    youtube: { type: String, trim: true, default: "" },
+    linkedin: { type: String, trim: true, default: "" },
 
-    phone: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    email: {
-      type: String,
-      trim: true,
-      lowercase: true,
-      default: "",
-    },
-
-    address: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    facebook: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    instagram: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    youtube: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    linkedin: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    googleMapUrl: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    footerLinks: {
-      type: [footerLinkSchema],
+    additionalSocialLinks: {
+      type: [additionalSocialLinkSchema],
       default: [],
     },
 
-    copyrightText: {
+    backgroundImage: {
       type: String,
       trim: true,
-      default: "",
+      default: "/images/real-dhaka.webp",
     },
 
-    isActive: {
-      type: Boolean,
-      default: true,
+    popularCategoryHeading: {
+      type: String,
+      trim: true,
+      default: "Popular Category",
     },
+    popularCategoryLinks: {
+      type: [footerLinkSchema],
+      default: [],
+    },
+    showPopularCategory: { type: Boolean, default: true },
+
+    customerInfoHeading: {
+      type: String,
+      trim: true,
+      default: "Customer Info",
+    },
+    customerInfoLinks: {
+      type: [footerLinkSchema],
+      default: [],
+    },
+    showCustomerInfo: { type: Boolean, default: true },
+
+    quickNavigationHeading: {
+      type: String,
+      trim: true,
+      default: "Quick Navigation",
+    },
+    quickNavigationLinks: {
+      type: [footerLinkSchema],
+      default: [],
+    },
+    showQuickNavigation: { type: Boolean, default: true },
+
+    googleMapHeading: {
+      type: String,
+      trim: true,
+      default: "Find us on Google Map",
+    },
+    googleMapCtaText: {
+      type: String,
+      trim: true,
+      default: "Find us on Google map",
+    },
+    googleMapUrl: { type: String, trim: true, default: "" },
+    showGoogleMap: { type: Boolean, default: true },
+
+    copyrightText: { type: String, trim: true, default: "" },
+    isActive: { type: Boolean, default: true },
 
     updatedBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -130,14 +117,9 @@ const footerSettingSchema = new mongoose.Schema(
       default: null,
     },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
 module.exports =
   mongoose.models.FooterSetting ||
-  mongoose.model(
-    "FooterSetting",
-    footerSettingSchema
-  );
+  mongoose.model("FooterSetting", footerSettingSchema);

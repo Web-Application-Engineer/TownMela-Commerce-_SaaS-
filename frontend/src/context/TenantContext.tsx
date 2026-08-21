@@ -622,6 +622,54 @@ export function TenantProvider({
           return;
         }
 
+        /* =================================================
+           DEFAULT SUPER ADMIN TENANT
+
+           If no previously selected valid tenant exists,
+           use TownMela as the default active tenant.
+        ================================================= */
+
+        const defaultTownMelaTenant =
+          activeTenants.find(
+            (tenant) => {
+              const storeName =
+                String(
+                  tenant.storeName || "",
+                )
+                  .trim()
+                  .toLowerCase();
+
+              const businessName =
+                String(
+                  tenant.businessName || "",
+                )
+                  .trim()
+                  .toLowerCase();
+
+              return (
+                storeName === "townmela" ||
+                businessName === "townmela"
+              );
+            },
+          );
+
+        const defaultTownMelaTenantId =
+          defaultTownMelaTenant?._id ||
+          defaultTownMelaTenant?.tenantId ||
+          "";
+
+        if (defaultTownMelaTenantId) {
+          saveTenantId(
+            defaultTownMelaTenantId,
+          );
+
+          setSelectedTenantId(
+            defaultTownMelaTenantId,
+          );
+
+          return;
+        }
+
         if (
           activeTenants.length ===
           1
