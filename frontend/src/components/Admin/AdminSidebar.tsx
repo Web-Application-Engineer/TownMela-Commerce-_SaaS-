@@ -17,6 +17,7 @@ import {
   CircleDollarSign,
   GalleryHorizontalEnd,
   LayoutDashboard,
+  KeyRound,
   LogOut,
   Package,
   PanelBottom,
@@ -313,6 +314,36 @@ const menuItems:
 
     roles: [
       "admin",
+      "superadmin",
+    ],
+  },
+
+  {
+    label:
+      "Change Password",
+
+    href:
+      "/admin/tenant-change-password",
+
+    icon:
+      KeyRound,
+
+    roles: [
+      "admin",
+    ],
+  },
+
+  {
+    label:
+      "Change Password",
+
+    href:
+      "/admin/change-password",
+
+    icon:
+      KeyRound,
+
+    roles: [
       "superadmin",
     ],
   },

@@ -37,6 +37,7 @@ type LoginApiResponse = {
     phone?: string;
     role?: string;
     tenantId?: string;
+    mustChangePassword?: boolean;
   };
 };
 
@@ -393,8 +394,14 @@ export default function LoginPage() {
         ),
       );
 
+      const mustChangePassword =
+        data.user.mustChangePassword ===
+        true;
+
       window.location.assign(
-        "/admin/dashboard",
+        mustChangePassword
+          ? "/admin/tenant-change-password"
+          : "/admin/dashboard",
       );
     } catch (error) {
       console.error(
@@ -578,6 +585,13 @@ export default function LoginPage() {
                     >
                       Password
                     </label>
+
+                    <Link
+                      href="/tenant-admin/forgot-password"
+                      className="text-sm font-bold text-[#FF6900] transition hover:text-[#e55f00]"
+                    >
+                      Forgot password?
+                    </Link>
                   </div>
 
                   <div className="group relative">

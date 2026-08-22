@@ -24,6 +24,7 @@ export type AdminUser = {
   role: AdminRole;
   tenantId?: string | null;
   tenant?: string | null;
+  mustChangePassword?: boolean;
 };
 
 const ADMIN_TOKEN_KEY =
@@ -57,8 +58,14 @@ export default function AdminLayout({
   const router = useRouter();
   const pathname = usePathname();
 
-  const isSuperAdminLoginPage =
-    pathname === "/admin/login";
+  const isPublicSuperAdminAuthPage =
+    pathname === "/admin/login" ||
+    pathname === "/admin/forgot-password" ||
+    pathname === "/admin/reset-password";
+
+  const isTenantPasswordChangePage =
+    pathname ===
+    "/admin/tenant-change-password";
 
   const [
     isChecking,
@@ -83,13 +90,14 @@ export default function AdminLayout({
 
   useEffect(() => {
     /*
-      /admin/login হচ্ছে Super Admin-এর public login page।
+      Super Admin login / forgot-password / reset-password
+      pages are public authentication pages.
 
       এখানে token check, redirect, header, sidebar
       অথবা TenantProvider চালানো হবে না।
     */
 
-    if (isSuperAdminLoginPage) {
+    if (isPublicSuperAdminAuthPage) {
       setIsChecking(false);
       setAdminUser(null);
       return;
@@ -171,6 +179,29 @@ export default function AdminLayout({
         );
       }
 
+      /*
+        New Tenant Admin accounts are created with a temporary
+        password and mustChangePassword = true.
+
+        Until that password is replaced, the Tenant Admin is
+        forced to the dedicated password-change page.
+      */
+
+      if (
+        normalizedUser.role ===
+          "admin" &&
+        normalizedUser
+          .mustChangePassword ===
+          true &&
+        !isTenantPasswordChangePage
+      ) {
+        router.replace(
+          "/admin/tenant-change-password",
+        );
+
+        return;
+      }
+
       setAdminUser(
         normalizedUser,
       );
@@ -187,7 +218,8 @@ export default function AdminLayout({
       router.replace("/login");
     }
   }, [
-    isSuperAdminLoginPage,
+    isPublicSuperAdminAuthPage,
+    isTenantPasswordChangePage,
     router,
   ]);
 
@@ -200,10 +232,10 @@ export default function AdminLayout({
   }, [pathname]);
 
   /* =======================================================
-     PUBLIC SUPER ADMIN LOGIN PAGE
+     PUBLIC SUPER ADMIN AUTH PAGES
   ======================================================= */
 
-  if (isSuperAdminLoginPage) {
+  if (isPublicSuperAdminAuthPage) {
     return children;
   }
 

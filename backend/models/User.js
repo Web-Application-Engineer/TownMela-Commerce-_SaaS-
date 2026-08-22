@@ -1,6 +1,7 @@
 "use strict";
 
 const mongoose = require("mongoose");
+
 const bcrypt = require("bcryptjs");
 
 const userSchema = new mongoose.Schema(
@@ -73,6 +74,11 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
       index: true,
+    },
+
+    mustChangePassword: {
+      type: Boolean,
+      default: false,
     },
 
     isActive: {
@@ -194,8 +200,7 @@ userSchema.methods.comparePassword =
     candidatePassword
   ) {
     if (
-      typeof candidatePassword !==
-        "string" ||
+      typeof candidatePassword !== "string" ||
       !candidatePassword ||
       !this.password
     ) {

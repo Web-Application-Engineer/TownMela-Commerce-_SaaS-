@@ -1077,6 +1077,9 @@ const createTenant =
           role:
             "admin",
 
+          mustChangePassword:
+            true,
+
           isActive:
             true,
 
