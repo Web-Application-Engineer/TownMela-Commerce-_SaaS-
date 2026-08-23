@@ -35,32 +35,18 @@ export default function Logo() {
 
   if (isLoading) {
     return (
-      <div className="flex shrink-0 items-center gap-3">
+      <div className="flex shrink-0 items-center sm:w-[240px]">
         <div className="h-8 w-28 animate-pulse rounded-md bg-white/10" />
-
-        <span
-          className="
-            hidden
-            border-l
-            border-gray-500
-            pl-3
-            text-sm
-            text-gray-300
-            sm:block
-          "
-        >
-          SINCE 2026
-        </span>
       </div>
     );
   }
 
   return (
-    <div className="flex shrink-0 items-center gap-3">
+    <div className="flex shrink-0 items-center sm:w-[240px]">
       <Link
         href="/"
         aria-label={`${businessName} home`}
-        className="flex shrink-0 items-center"
+        className="flex w-full shrink-0 items-center"
       >
         {/* =================================================
             MOBILE LOGO
@@ -103,15 +89,16 @@ export default function Logo() {
           <Image
             src={desktopLogo}
             alt={`${businessName} logo`}
-            width={180}
-            height={60}
+            width={240}
+            height={52}
             priority
             className="
               hidden
-              h-10
-              w-auto
-              max-w-[170px]
+              h-[52px]
+              w-full
+              max-w-[240px]
               object-contain
+              object-left
               sm:block
             "
           />
@@ -119,6 +106,7 @@ export default function Logo() {
           <span
             className="
               hidden
+              w-full
               text-2xl
               font-black
               tracking-tight
@@ -130,20 +118,6 @@ export default function Logo() {
           </span>
         )}
       </Link>
-
-      <span
-        className="
-          hidden
-          border-l
-          border-gray-500
-          pl-3
-          text-sm
-          text-gray-300
-          sm:block
-        "
-      >
-        SINCE 2026
-      </span>
     </div>
   );
 }

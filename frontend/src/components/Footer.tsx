@@ -106,6 +106,114 @@ function getGoogleMapOpenUrl(
 }
 
 /* =========================================================
+   SOCIAL ICONS
+========================================================= */
+
+function SocialIcon({
+  name,
+  fallback,
+}: {
+  name: string;
+  fallback: string;
+}) {
+  const normalizedName =
+    name.trim().toLowerCase();
+
+  if (normalizedName === "phone") {
+    return (
+      <Phone
+        size={18}
+        strokeWidth={2}
+        className="text-[#22C55E]"
+      />
+    );
+  }
+
+  if (normalizedName === "facebook") {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        className="h-[18px] w-[18px]"
+      >
+        <path
+          fill="#1877F2"
+          d="M13.5 22v-8h2.7l.4-3h-3.1V9.1c0-.9.3-1.6 1.6-1.6h1.7V4.8c-.3 0-1.3-.1-2.5-.1-2.5 0-4.2 1.5-4.2 4.3v2H7.3v3h2.8v8h3.4Z"
+        />
+      </svg>
+    );
+  }
+
+  if (normalizedName === "instagram") {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        className="h-[18px] w-[18px]"
+      >
+        <defs>
+          <linearGradient
+            id="footerInstagramGradient"
+            x1="2"
+            y1="22"
+            x2="22"
+            y2="2"
+            gradientUnits="userSpaceOnUse"
+          >
+            <stop offset="0%" stopColor="#FFDC80" />
+            <stop offset="28%" stopColor="#F77737" />
+            <stop offset="52%" stopColor="#E1306C" />
+            <stop offset="76%" stopColor="#C13584" />
+            <stop offset="100%" stopColor="#5851DB" />
+          </linearGradient>
+        </defs>
+
+        <path
+          fill="url(#footerInstagramGradient)"
+          d="M7.2 2h9.6A5.2 5.2 0 0 1 22 7.2v9.6a5.2 5.2 0 0 1-5.2 5.2H7.2A5.2 5.2 0 0 1 2 16.8V7.2A5.2 5.2 0 0 1 7.2 2Zm0 2A3.2 3.2 0 0 0 4 7.2v9.6A3.2 3.2 0 0 0 7.2 20h9.6a3.2 3.2 0 0 0 3.2-3.2V7.2A3.2 3.2 0 0 0 16.8 4H7.2Zm10.3 1.5a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4ZM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"
+        />
+      </svg>
+    );
+  }
+
+  if (normalizedName === "linkedin") {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        className="h-[18px] w-[18px]"
+      >
+        <path
+          fill="#0A66C2"
+          d="M6.5 8.2H3.2V21h3.3V8.2ZM4.9 3A1.9 1.9 0 1 0 4.9 6.8 1.9 1.9 0 0 0 4.9 3ZM21 13.7c0-3.9-2.1-5.8-4.9-5.8-2.3 0-3.3 1.3-3.9 2.2V8.2H8.9V21h3.3v-6.3c0-1.7.3-3.3 2.4-3.3 2 0 2.1 1.9 2.1 3.4V21H20v-7.3h1Z"
+        />
+      </svg>
+    );
+  }
+
+  if (normalizedName === "youtube") {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        className="h-[19px] w-[19px]"
+      >
+        <path
+          fill="#FF0000"
+          d="M21.6 7.2a2.8 2.8 0 0 0-2-2C17.8 4.7 12 4.7 12 4.7s-5.8 0-7.6.5a2.8 2.8 0 0 0-2 2A29.5 29.5 0 0 0 2 12a29.5 29.5 0 0 0 .4 4.8 2.8 2.8 0 0 0 2 2c1.8.5 7.6.5 7.6.5s5.8 0 7.6-.5a2.8 2.8 0 0 0 2-2A29.5 29.5 0 0 0 22 12a29.5 29.5 0 0 0-.4-4.8ZM10 15.4V8.6l6 3.4-6 3.4Z"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <span className="text-[12px] font-bold leading-none">
+      {fallback}
+    </span>
+  );
+}
+
+/* =========================================================
    FOOTER
 ========================================================= */
 
@@ -167,7 +275,7 @@ export default function Footer() {
         const builtInLinks = [
           phone
             ? {
-                icon: "📞",
+                icon: "Phone",
                 link: `tel:${phone.replace(
                   /\s+/g,
                   "",
@@ -179,7 +287,7 @@ export default function Footer() {
 
           settings.facebook?.trim()
             ? {
-                icon: "f",
+                icon: "Facebook",
                 link:
                   settings.facebook.trim(),
                 name: "Facebook",
@@ -189,7 +297,7 @@ export default function Footer() {
 
           settings.instagram?.trim()
             ? {
-                icon: "◎",
+                icon: "Instagram",
                 link:
                   settings.instagram.trim(),
                 name: "Instagram",
@@ -199,7 +307,7 @@ export default function Footer() {
 
           settings.linkedin?.trim()
             ? {
-                icon: "in",
+                icon: "LinkedIn",
                 link:
                   settings.linkedin.trim(),
                 name: "LinkedIn",
@@ -209,7 +317,7 @@ export default function Footer() {
 
           settings.youtube?.trim()
             ? {
-                icon: "▶",
+                icon: "YouTube",
                 link:
                   settings.youtube.trim(),
                 name: "YouTube",
@@ -555,11 +663,16 @@ export default function Footer() {
                       title={
                         item.name
                       }
-                      className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-full border border-[#f7931a] bg-black/25 text-[13px] font-bold text-white transition duration-300 hover:bg-[#f7931a]"
+                      className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-full border-2 border-[#F3C600] text-[13px] font-bold text-white transition duration-300 hover:bg-[#FFFFFF]"
                     >
-                      {
-                        item.icon
-                      }
+                      <SocialIcon
+                        name={
+                          item.name
+                        }
+                        fallback={
+                          item.icon
+                        }
+                      />
                     </Link>
                   ),
                 )}

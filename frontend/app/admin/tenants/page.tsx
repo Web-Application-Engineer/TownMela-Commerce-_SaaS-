@@ -191,11 +191,143 @@ const getStatusClass = (status?: string) => {
   }
 };
 
+const normalizeTenantIdentity = (value?: string) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+const isDefaultTownMelaTenant = (tenant: Tenant) =>
+  [
+    tenant.storeName,
+    tenant.businessName,
+    tenant.slug,
+  ].some(
+    (value) =>
+      normalizeTenantIdentity(value) ===
+      "townmela"
+  );
+
+const getTenantExpiryValue = (tenant: Tenant) =>
+  tenant.subscription?.isTrial
+    ? tenant.subscription?.trialEndsAt
+    : tenant.subscription?.expiresAt;
+
+const getTenantDisplayStatus = (tenant: Tenant) => {
+  if (isDefaultTownMelaTenant(tenant)) {
+    return "active";
+  }
+
+  if (
+    tenant.status === "suspended" ||
+    tenant.status === "inactive"
+  ) {
+    return tenant.status;
+  }
+
+  if (
+    tenant.subscription?.status === "trial" ||
+    tenant.subscription?.isTrial === true
+  ) {
+    return "trial";
+  }
+
+  return "active";
+};
+
+const getExpiryClass = (value?: string | null) => {
+  if (!value) {
+    return "text-slate-600";
+  }
+
+  const expiryDate = new Date(value);
+
+  if (Number.isNaN(expiryDate.getTime())) {
+    return "text-slate-600";
+  }
+
+  const today = new Date();
+
+  const todayDateOnly = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate()
+  );
+
+  const expiryDateOnly = new Date(
+    expiryDate.getFullYear(),
+    expiryDate.getMonth(),
+    expiryDate.getDate()
+  );
+
+  const dayDifference = Math.round(
+    (expiryDateOnly.getTime() -
+      todayDateOnly.getTime()) /
+      86400000
+  );
+
+  if (dayDifference <= 0) {
+    return "text-red-800";
+  }
+
+  if (dayDifference === 1) {
+    return "text-yellow-700";
+  }
+
+  return "text-slate-600";
+};
+
+const getExtendedTrialPreview = (
+  tenant: Tenant,
+  additionalDays: number
+) => {
+  if (
+    !Number.isInteger(additionalDays) ||
+    additionalDays < 1
+  ) {
+    return null;
+  }
+
+  const now = new Date();
+
+  const currentTrialEnd =
+    tenant.subscription?.trialEndsAt
+      ? new Date(
+          tenant.subscription.trialEndsAt
+        )
+      : null;
+
+  const baseDate =
+    currentTrialEnd &&
+    !Number.isNaN(
+      currentTrialEnd.getTime()
+    ) &&
+    currentTrialEnd > now
+      ? currentTrialEnd
+      : now;
+
+  const result = new Date(baseDate);
+
+  result.setDate(
+    result.getDate() +
+      additionalDays
+  );
+
+  return result.toISOString();
+};
+
 export default function TenantsPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState("");
   const [error, setError] = useState("");
+
+  const [trialTenant, setTrialTenant] =
+    useState<Tenant | null>(null);
+  const [trialDays, setTrialDays] =
+    useState("");
+  const [trialError, setTrialError] =
+    useState("");
 
   const [search, setSearch] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
@@ -309,6 +441,16 @@ export default function TenantsPage() {
 
     if (!id) return;
 
+    if (
+      nextStatus === "suspended" &&
+      isDefaultTownMelaTenant(tenant)
+    ) {
+      setError(
+        "The default TownMela tenant cannot be suspended."
+      );
+      return;
+    }
+
     const confirmed = window.confirm(
       nextStatus === "suspended"
         ? `Suspend ${tenant.storeName || tenant.businessName || "this tenant"}?`
@@ -366,6 +508,128 @@ export default function TenantsPage() {
       setActionId("");
     }
   };
+
+  const openTrialExtension = (
+    tenant: Tenant
+  ) => {
+    setTrialTenant(tenant);
+    setTrialDays("");
+    setTrialError("");
+  };
+
+  const closeTrialExtension = () => {
+    if (
+      trialTenant &&
+      actionId ===
+        (trialTenant._id ||
+          trialTenant.tenantId)
+    ) {
+      return;
+    }
+
+    setTrialTenant(null);
+    setTrialDays("");
+    setTrialError("");
+  };
+
+  const extendTrial = async () => {
+    if (!trialTenant) return;
+
+    const id =
+      trialTenant._id ||
+      trialTenant.tenantId;
+
+    if (!id) return;
+
+    const additionalDays =
+      Number.parseInt(
+        trialDays,
+        10
+      );
+
+    if (
+      !Number.isInteger(
+        additionalDays
+      ) ||
+      additionalDays < 1
+    ) {
+      setTrialError(
+        "Please enter a valid number of additional trial days."
+      );
+      return;
+    }
+
+    setActionId(id);
+    setTrialError("");
+    setError("");
+
+    try {
+      const token = getToken();
+
+      if (!token) {
+        throw new Error(
+          "Authentication token not found. Please log in again."
+        );
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/tenants/${id}/trial/extend`,
+        {
+          method: "PATCH",
+          headers: {
+            Accept: "application/json",
+            "Content-Type":
+              "application/json",
+            Authorization:
+              `Bearer ${token}`,
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            additionalDays,
+          }),
+        }
+      );
+
+      const payload =
+        await response
+          .json()
+          .catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(
+            payload,
+            "Unable to extend tenant trial."
+          )
+        );
+      }
+
+      setTrialTenant(null);
+      setTrialDays("");
+      setTrialError("");
+
+      await fetchTenants();
+    } catch (requestError) {
+      setTrialError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to extend tenant trial."
+      );
+    } finally {
+      setActionId("");
+    }
+  };
+
+  const trialPreview =
+    trialTenant
+      ? getExtendedTrialPreview(
+          trialTenant,
+          Number.parseInt(
+            trialDays,
+            10
+          )
+        )
+      : null;
 
   return (
     <main className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
@@ -510,9 +774,26 @@ export default function TenantsPage() {
                 ) : (
                   tenants.map((tenant) => {
                     const id = tenant._id || tenant.tenantId || "";
-                    const subscriptionStatus =
-                      tenant.subscription?.status ||
-                      (tenant.subscription?.isTrial ? "trial" : "unknown");
+
+                    const tenantDisplayStatus =
+                      getTenantDisplayStatus(
+                        tenant
+                      );
+
+                    const expiryValue =
+                      getTenantExpiryValue(
+                        tenant
+                      );
+
+                    const isDefaultTenant =
+                      isDefaultTownMelaTenant(
+                        tenant
+                      );
+
+                    const canExtendTrial =
+                      tenant.subscription
+                        ?.isTrial ===
+                        true;
 
                     return (
                       <tr key={id} className="align-top hover:bg-slate-50/70">
@@ -542,31 +823,29 @@ export default function TenantsPage() {
                         <td className="px-5 py-4">
                           <span
                             className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ring-1 ring-inset ${getStatusClass(
-                              tenant.status
+                              tenantDisplayStatus
                             )}`}
                           >
-                            {tenant.status || "unknown"}
+                            {tenantDisplayStatus}
                           </span>
                         </td>
 
                         <td className="px-5 py-4">
                           <p className="text-sm font-medium text-slate-800">
-                            {tenant.subscription?.plan || "Standard"}
+                            {tenant.subscription?.plan
+                              ? tenant.subscription.plan.charAt(0).toUpperCase() +
+                                tenant.subscription.plan.slice(1).toLowerCase()
+                              : "Standard"}
                           </p>
-                          <span
-                            className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ring-1 ring-inset ${getStatusClass(
-                              subscriptionStatus
-                            )}`}
-                          >
-                            {subscriptionStatus}
-                          </span>
                         </td>
 
-                        <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-600">
+                        <td
+                          className={`whitespace-nowrap px-5 py-4 text-sm ${getExpiryClass(
+                            expiryValue
+                          )}`}
+                        >
                           {formatDate(
-                            tenant.subscription?.isTrial
-                              ? tenant.subscription?.trialEndsAt
-                              : tenant.subscription?.expiresAt
+                            expiryValue
                           )}
                         </td>
 
@@ -590,6 +869,23 @@ export default function TenantsPage() {
                               Edit
                             </Link>
 
+                            {canExtendTrial ? (
+                              <button
+                                type="button"
+                                disabled={
+                                  actionId === id
+                                }
+                                onClick={() =>
+                                  openTrialExtension(
+                                    tenant
+                                  )
+                                }
+                                className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                Extend Trial
+                              </button>
+                            ) : null}
+
                             {tenant.status === "suspended" ? (
                               <button
                                 type="button"
@@ -601,7 +897,7 @@ export default function TenantsPage() {
                               >
                                 {actionId === id ? "Working..." : "Activate"}
                               </button>
-                            ) : (
+                            ) : !isDefaultTenant ? (
                               <button
                                 type="button"
                                 disabled={actionId === id}
@@ -612,7 +908,7 @@ export default function TenantsPage() {
                               >
                                 {actionId === id ? "Working..." : "Suspend"}
                               </button>
-                            )}
+                            ) : null}
                           </div>
                         </td>
                       </tr>
@@ -659,6 +955,126 @@ export default function TenantsPage() {
           </div>
         </section>
       </div>
+
+      {trialTenant ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-6">
+            <div className="mb-5">
+              <p className="text-sm font-semibold text-amber-700">
+                Trial Extension
+              </p>
+
+              <h2 className="mt-1 text-xl font-bold text-slate-900">
+                {trialTenant.storeName ||
+                  trialTenant.businessName ||
+                  "Tenant"}
+              </h2>
+
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                Enter additional trial days manually. No extra trial days are
+                added automatically. If the trial has already expired, the new
+                extension starts from today.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-xl bg-slate-50 p-4">
+                <div className="flex items-center justify-between gap-4 text-sm">
+                  <span className="text-slate-500">
+                    Current expiry
+                  </span>
+
+                  <span className="font-semibold text-slate-800">
+                    {formatDate(
+                      trialTenant.subscription
+                        ?.trialEndsAt
+                    )}
+                  </span>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between gap-4 text-sm">
+                  <span className="text-slate-500">
+                    New expiry
+                  </span>
+
+                  <span className="font-bold text-emerald-700">
+                    {formatDate(
+                      trialPreview
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="additionalTrialDays"
+                  className="mb-2 block text-sm font-semibold text-slate-800"
+                >
+                  Additional Days
+                </label>
+
+                <input
+                  id="additionalTrialDays"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={trialDays}
+                  onChange={(event) => {
+                    setTrialDays(
+                      event.target.value
+                    );
+                    setTrialError("");
+                  }}
+                  className="min-h-11 w-full rounded-xl border border-slate-300 px-4 text-sm outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
+                />
+              </div>
+
+              {trialError ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  {trialError}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={
+                  actionId ===
+                  (trialTenant._id ||
+                    trialTenant.tenantId)
+                }
+                onClick={
+                  closeTrialExtension
+                }
+                className="min-h-11 rounded-xl border border-slate-300 px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={
+                  actionId ===
+                    (trialTenant._id ||
+                      trialTenant.tenantId) ||
+                  !trialPreview
+                }
+                onClick={() =>
+                  void extendTrial()
+                }
+                className="min-h-11 rounded-xl bg-amber-600 px-5 text-sm font-semibold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {actionId ===
+                (trialTenant._id ||
+                  trialTenant.tenantId)
+                  ? "Extending..."
+                  : "Extend Trial"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

@@ -10,17 +10,16 @@ import {
   AlertCircle,
   CheckCircle2,
   LoaderCircle,
-  Plus,
+  Mail,
+  Phone,
   RefreshCcw,
   Save,
-  Trash2,
+  Truck,
 } from "lucide-react";
 
 import {
   useTenant,
 } from "@/src/context/TenantContext";
-
-import LogoUploader from "./LogoUploader";
 
 /* =========================================================
    API
@@ -338,84 +337,8 @@ export default function HeaderManagementClient() {
   }
 
   /* =======================================================
-     MENU
-  ======================================================= */
-
-  function addMenu() {
-    const nextOrder =
-      settings.menus.length +
-      1;
-
-    updateSetting(
-      "menus",
-      [
-        ...settings.menus,
-
-        {
-          label: "",
-          url: "",
-          enabled: true,
-          order: nextOrder,
-        },
-      ],
-    );
-  }
-
-  function updateMenu(
-    index: number,
-    field: keyof HeaderMenuItem,
-    value:
-      | string
-      | boolean
-      | number,
-  ) {
-    const updatedMenus =
-      settings.menus.map(
-        (menu, menuIndex) =>
-          menuIndex === index
-            ? {
-                ...menu,
-                [field]: value,
-              }
-            : menu,
-      );
-
-    updateSetting(
-      "menus",
-      updatedMenus,
-    );
-  }
-
-  function removeMenu(
-    index: number,
-  ) {
-    const updatedMenus =
-      settings.menus
-        .filter(
-          (
-            _,
-            menuIndex,
-          ) =>
-            menuIndex !== index,
-        )
-        .map(
-          (
-            menu,
-            menuIndex,
-          ) => ({
-            ...menu,
-            order:
-              menuIndex + 1,
-          }),
-        );
-
-    updateSetting(
-      "menus",
-      updatedMenus,
-    );
-  }
-
-  /* =======================================================
+     SAVE SETTINGS
+  ======================================================= */  /* =======================================================
      SAVE SETTINGS
   ======================================================= */
 
@@ -931,346 +854,181 @@ export default function HeaderManagementClient() {
 </section>
 
       {/* ===================================================
-          CONTACT INFORMATION
+          ANNOUNCEMENT BAR
       =================================================== */}
 
       <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-  <div>
-    <h2 className="text-lg font-black text-[#0B1F3A]">
-      Contact Information
-    </h2>
-
-    <p className="mt-1 text-sm text-gray-500">
-      Add the contact details you want to show in the storefront header.
-    </p>
-  </div>
-
-  <div className="mt-5 grid gap-4 md:grid-cols-2">
-    <div>
-      <label className="mb-2 block text-sm font-bold text-gray-700">
-        Phone
-      </label>
-
-      <input
-        type="text"
-        value={settings.phone}
-        onChange={(event) =>
-          updateSetting(
-            "phone",
-            event.target.value,
-          )
-        }
-        placeholder="+8801XXXXXXXXX"
-        className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm text-[#0B1F3A] outline-none transition focus:border-orange-300 focus:ring-4 focus:ring-orange-50"
-      />
-    </div>
-
-    <div>
-      <label className="mb-2 block text-sm font-bold text-gray-700">
-        Email
-      </label>
-
-      <input
-        type="email"
-        value={settings.email}
-        onChange={(event) =>
-          updateSetting(
-            "email",
-            event.target.value,
-          )
-        }
-        placeholder="info@yourstore.com"
-        className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm text-[#0B1F3A] outline-none transition focus:border-orange-300 focus:ring-4 focus:ring-orange-50"
-      />
-    </div>
-  </div>
-</section>
-
-      {/* ===================================================
-          ANNOUNCEMENT
-      =================================================== */}
-
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-    <div>
-      <h2 className="text-lg font-black text-[#0B1F3A]">
-        Announcement Bar
-      </h2>
-
-      <p className="mt-1 text-sm text-gray-500">
-        Show a short message at the top of the storefront header.
-      </p>
-    </div>
-
-    <label className="inline-flex items-center gap-3">
-      <span className="text-sm font-bold text-gray-600">
-        Enable
-      </span>
-
-      <input
-        type="checkbox"
-        checked={settings.announcementEnabled}
-        onChange={(event) =>
-          updateSetting(
-            "announcementEnabled",
-            event.target.checked,
-          )
-        }
-        className="h-5 w-5 accent-[#FF6900]"
-      />
-    </label>
-  </div>
-
-  <div className="mt-5">
-    <label className="mb-2 block text-sm font-bold text-gray-700">
-      Announcement Text
-    </label>
-
-    <textarea
-      rows={3}
-      value={settings.announcementText}
-      disabled={!settings.announcementEnabled}
-      onChange={(event) =>
-        updateSetting(
-          "announcementText",
-          event.target.value,
-        )
-      }
-      placeholder="Example: Free delivery on orders over ৳1000"
-      className="w-full resize-none rounded-xl border border-gray-200 p-3 text-sm text-[#0B1F3A] outline-none transition focus:border-orange-300 focus:ring-4 focus:ring-orange-50 disabled:bg-gray-100 disabled:text-gray-400"
-    />
-  </div>
-</section>
-
-      {/* ===================================================
-          NAVIGATION
-      =================================================== */}
-
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-  <div className="flex items-center justify-between">
-    <div>
-      <h2 className="text-lg font-black text-[#0B1F3A]">
-        Navigation Menu
-      </h2>
-
-      <p className="mt-1 text-sm text-gray-500">
-        Manage your storefront navigation menu.
-      </p>
-    </div>
-
-    <button
-      type="button"
-      onClick={addMenu}
-      className="rounded-xl bg-[#FF6900] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#e65f00]"
-    >
-      + Add Menu
-    </button>
-  </div>
-
-  <div className="mt-5 space-y-4">
-    {settings.menus.length === 0 && (
-      <div className="rounded-xl border border-dashed border-gray-300 py-8 text-center text-sm text-gray-500">
-        No menu added yet.
-      </div>
-    )}
-
-    {settings.menus.map((menu, index) => (
-      <div
-        key={index}
-        className="rounded-xl border border-gray-200 bg-gray-50 p-4"
-      >
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <label className="mb-2 block text-sm font-bold text-gray-700">
-              Menu Name
-            </label>
+            <h2 className="text-lg font-black text-[#0B1F3A]">
+              Announcement Bar
+            </h2>
 
-            <input
-              type="text"
-              value={menu.label}
-              onChange={(event) =>
-                updateMenu(
-                  index,
-                  "label",
-                  event.target.value
-                )
-              }
-              placeholder="Home"
-              className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-orange-300"
-            />
+            <p className="mt-1 text-sm text-gray-500">
+              Manage the phone, announcement text and email shown in the storefront top bar.
+            </p>
           </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-bold text-gray-700">
-              URL
-            </label>
+          <label className="inline-flex items-center gap-3">
+            <span className="text-sm font-bold text-gray-600">
+              Enable
+            </span>
 
-            <input
-              type="text"
-              value={menu.url}
-              onChange={(event) =>
-                updateMenu(
-                  index,
-                  "url",
-                  event.target.value
-                )
-              }
-              placeholder="/shop"
-              className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-orange-300"
-            />
-          </div>
-        </div>
-
-        <div className="mt-4 flex items-center justify-between">
-          <label className="inline-flex items-center gap-2">
             <input
               type="checkbox"
-              checked={menu.enabled}
+              checked={settings.announcementEnabled}
               onChange={(event) =>
-                updateMenu(
-                  index,
-                  "enabled",
-                  event.target.checked
+                updateSetting(
+                  "announcementEnabled",
+                  event.target.checked,
                 )
               }
-              className="h-4 w-4 accent-[#FF6900]"
+              className="h-5 w-5 accent-[#FF6900]"
             />
+          </label>
+        </div>
 
-            <span className="text-sm font-medium">
-              Show in Header
-            </span>
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          <div>
+            <label className="mb-2 block text-sm font-bold text-gray-700">
+              Phone
+            </label>
+
+            <input
+              type="text"
+              value={settings.phone}
+              onChange={(event) =>
+                updateSetting(
+                  "phone",
+                  event.target.value,
+                )
+              }
+              placeholder="+8801XXXXXXXXX"
+              className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm text-[#0B1F3A] outline-none transition focus:border-orange-300 focus:ring-4 focus:ring-orange-50"
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-bold text-gray-700">
+              Email
+            </label>
+
+            <input
+              type="email"
+              value={settings.email}
+              onChange={(event) =>
+                updateSetting(
+                  "email",
+                  event.target.value,
+                )
+              }
+              placeholder="info@yourstore.com"
+              className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm text-[#0B1F3A] outline-none transition focus:border-orange-300 focus:ring-4 focus:ring-orange-50"
+            />
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <label className="mb-2 block text-sm font-bold text-gray-700">
+            Announcement Text
           </label>
 
-          <button
-            type="button"
-            onClick={() =>
-              removeMenu(index)
+          <textarea
+            rows={3}
+            value={settings.announcementText}
+            disabled={!settings.announcementEnabled}
+            onChange={(event) =>
+              updateSetting(
+                "announcementText",
+                event.target.value,
+              )
             }
-            className="rounded-lg bg-red-50 px-3 py-2 text-sm font-bold text-red-600 transition hover:bg-red-100"
-          >
-            Remove
-          </button>
+            placeholder="Example: Free delivery on orders over ৳1000"
+            className="w-full resize-none rounded-xl border border-gray-200 p-3 text-sm text-[#0B1F3A] outline-none transition focus:border-orange-300 focus:ring-4 focus:ring-orange-50 disabled:bg-gray-100 disabled:text-gray-400"
+          />
         </div>
-      </div>
-    ))}
-  </div>
-</section>
+      </section>
 
       {/* ===================================================
-          HEADER OPTIONS
+          STOREFRONT HEADER PREVIEW
       =================================================== */}
 
       <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-  <div>
-    <h2 className="text-lg font-black text-[#0B1F3A]">
-      Header Options
-    </h2>
+        <div>
+          <h2 className="text-lg font-black text-[#0B1F3A]">
+            Preview
+          </h2>
 
-    <p className="mt-1 text-sm text-gray-500">
-      Choose which header features will be visible in the storefront.
-    </p>
-  </div>
+          <p className="mt-1 text-sm text-gray-500">
+            Live preview of the selected tenant logo and announcement bar.
+          </p>
+        </div>
 
-  <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-    <label className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-      <span className="text-sm font-bold text-gray-700">
-        Search
-      </span>
+        <div className="mt-5 overflow-hidden rounded-xl border border-gray-200 bg-[#17181d] text-white shadow-sm">
+          {settings.isActive &&
+            settings.announcementEnabled &&
+            Boolean(
+              settings.phone.trim() ||
+                settings.announcementText.trim() ||
+                settings.email.trim(),
+            ) && (
+              <div className="w-full bg-[#FF6900]">
+                <div className="grid w-full grid-cols-1 items-center gap-1 px-3 py-1.5 text-xs font-bold text-white sm:grid-cols-3 sm:gap-3 sm:px-4">
+                  <div className="flex min-w-0 items-center justify-center sm:justify-start">
+                    {settings.phone.trim() ? (
+                      <span className="inline-flex min-h-[26px] min-w-0 items-center gap-1.5 rounded-full border border-white/80 bg-white/95 px-3 py-1 text-[12px] font-semibold text-[#17181d] shadow-sm">
+                        <Phone
+                          size={15}
+                          className="shrink-0 text-[#FF6900]"
+                          aria-hidden="true"
+                        />
 
-      <input
-        type="checkbox"
-        checked={settings.searchEnabled}
-        onChange={(event) =>
-          updateSetting(
-            "searchEnabled",
-            event.target.checked,
-          )
-        }
-        className="h-5 w-5 accent-[#FF6900]"
-      />
-    </label>
+                        <span className="truncate">
+                          {settings.phone}
+                        </span>
+                      </span>
+                    ) : null}
+                  </div>
 
-    <label className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-      <span className="text-sm font-bold text-gray-700">
-        Wishlist
-      </span>
+                  <div className="flex min-w-0 items-center justify-center text-center">
+                    {settings.announcementText.trim() ? (
+                      <span className="inline-flex min-w-0 items-center justify-center gap-1.5">
+                        <Truck
+                          size={15}
+                          className="shrink-0"
+                          aria-hidden="true"
+                        />
 
-      <input
-        type="checkbox"
-        checked={settings.wishlistEnabled}
-        onChange={(event) =>
-          updateSetting(
-            "wishlistEnabled",
-            event.target.checked,
-          )
-        }
-        className="h-5 w-5 accent-[#FF6900]"
-      />
-    </label>
+                        <span className="truncate">
+                          {settings.announcementText}
+                        </span>
+                      </span>
+                    ) : null}
+                  </div>
 
-    <label className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-      <span className="text-sm font-bold text-gray-700">
-        Account
-      </span>
+                  <div className="flex min-w-0 items-center justify-center sm:justify-end">
+                    {settings.email.trim() ? (
+                      <span className="inline-flex min-h-[26px] min-w-0 items-center gap-1.5 rounded-full border border-white/80 bg-white/95 px-3 py-1 text-[12px] font-semibold text-[#17181d] shadow-sm">
+                        <Mail
+                          size={15}
+                          className="shrink-0 text-[#FF6900]"
+                          aria-hidden="true"
+                        />
 
-      <input
-        type="checkbox"
-        checked={settings.accountEnabled}
-        onChange={(event) =>
-          updateSetting(
-            "accountEnabled",
-            event.target.checked,
-          )
-        }
-        className="h-5 w-5 accent-[#FF6900]"
-      />
-    </label>
-
-    <label className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-      <span className="text-sm font-bold text-gray-700">
-        Cart
-      </span>
-
-      <input
-        type="checkbox"
-        checked={settings.cartEnabled}
-        onChange={(event) =>
-          updateSetting(
-            "cartEnabled",
-            event.target.checked,
-          )
-        }
-        className="h-5 w-5 accent-[#FF6900]"
-      />
-    </label>
-  </div>
-</section>
-
-      {/* ===================================================
-          SIMPLE PREVIEW
-      =================================================== */}
-
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-        <h2 className="text-lg font-black text-[#0B1F3A]">
-          Preview
-        </h2>
-
-        <div className="mt-5 overflow-hidden rounded-xl bg-[#17181d] text-white">
-          {settings.announcementEnabled &&
-            settings.announcementText && (
-              <div className="bg-[#FF6900] px-4 py-2 text-center text-xs font-bold">
-                {
-                  settings.announcementText
-                }
+                        <span className="truncate">
+                          {settings.email}
+                        </span>
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
               </div>
             )}
 
-          <div className="flex flex-wrap items-center gap-4 px-4 py-4">
+          <div className="flex items-center px-4 py-4">
             {settings.logo ? (
               <img
-                src={
-                  settings.logo
-                }
+                src={settings.logo}
                 alt={
                   settings.businessName ||
                   "Business logo"
@@ -1283,34 +1041,13 @@ export default function HeaderManagementClient() {
                   "Business Name"}
               </span>
             )}
-
-            <div className="flex flex-wrap items-center gap-4 text-sm">
-              {settings.menus
-                .filter(
-                  (menu) =>
-                    menu.enabled,
-                )
-                .map(
-                  (
-                    menu,
-                    index,
-                  ) => (
-                    <span
-                      key={index}
-                    >
-                      {
-                        menu.label ||
-                        "Menu"
-                      }
-                    </span>
-                  ),
-                )}
-            </div>
           </div>
         </div>
       </section>
 
       {/* ===================================================
+          SAVE
+      =================================================== */}      {/* ===================================================
           SAVE
       =================================================== */}
 

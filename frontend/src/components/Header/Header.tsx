@@ -12,7 +12,10 @@ import {
 } from "react";
 
 import {
+  Mail,
   Menu,
+  Phone,
+  Truck,
 } from "lucide-react";
 
 import {
@@ -94,11 +97,22 @@ export default function Header() {
      HEADER SETTINGS
   ======================================================= */
 
+  const announcementPhone =
+    settings.phone?.trim() || "";
+
+  const announcementText =
+    settings.announcementText?.trim() || "";
+
+  const announcementEmail =
+    settings.email?.trim() || "";
+
   const showAnnouncement =
     settings.isActive &&
     settings.announcementEnabled &&
     Boolean(
-      settings.announcementText?.trim(),
+      announcementPhone ||
+        announcementText ||
+        announcementEmail,
     );
 
   /* =======================================================
@@ -427,10 +441,90 @@ export default function Header() {
 
         {showAnnouncement && (
           <div className="w-full bg-[#FF6900]">
-            <div className="mx-auto w-full max-w-[1490px] px-3 py-2 text-center text-xs font-bold text-white sm:px-4 sm:text-sm lg:px-5">
-              {
-                settings.announcementText
-              }
+            <div
+              className="
+                mx-auto
+                grid
+                w-full
+                max-w-[1490px]
+                grid-cols-1
+                items-center
+                min-h-[40px]
+                gap-1
+                px-3
+                pt-2
+                pb-2
+                text-xs
+                font-bold
+                text-white
+                sm:grid-cols-3
+                sm:gap-3
+                sm:px-4
+                sm:text-sm
+                lg:px-5
+              "
+            >
+              {/* LEFT: PHONE */}
+              <div className="flex min-w-0 items-center justify-center sm:justify-start">
+                {announcementPhone ? (
+                  <a
+                    href={`tel:${announcementPhone.replace(
+                      /\s+/g,
+                      "",
+                    )}`}
+                    className="inline-flex min-h-[26px] min-w-0 items-center gap-1.5 rounded-full border border-white/80 bg-white/95 px-3 py-1 text-[12px] font-semibold text-[#17181d] shadow-sm transition hover:bg-white"
+                    aria-label={`Call ${announcementPhone}`}
+                  >
+                    <Phone
+                      size={15}
+                      className="shrink-0 text-[#FF6900]"
+                      aria-hidden="true"
+                    />
+
+                    <span className="truncate">
+                      {announcementPhone}
+                    </span>
+                  </a>
+                ) : null}
+              </div>
+
+              {/* CENTER: ANNOUNCEMENT */}
+              <div className="flex min-w-0 items-center justify-center text-center">
+                {announcementText ? (
+                  <div className="inline-flex min-w-0 items-center justify-center gap-1.5">
+                    <Truck
+                      size={15}
+                      className="shrink-0"
+                      aria-hidden="true"
+                    />
+
+                    <span className="truncate">
+                      {announcementText}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* RIGHT: EMAIL */}
+              <div className="flex min-w-0 items-center justify-center sm:justify-end">
+                {announcementEmail ? (
+                  <a
+                    href={`mailto:${announcementEmail}`}
+                    className="inline-flex min-h-[26px] min-w-0 items-center gap-1.5 rounded-full border border-white/80 bg-white/95 px-3 py-1 text-[12px] font-semibold text-[#17181d] shadow-sm transition hover:bg-white"
+                    aria-label={`Email ${announcementEmail}`}
+                  >
+                    <Mail
+                      size={15}
+                      className="shrink-0 text-[#FF6900]"
+                      aria-hidden="true"
+                    />
+
+                    <span className="truncate">
+                      {announcementEmail}
+                    </span>
+                  </a>
+                ) : null}
+              </div>
             </div>
           </div>
         )}
@@ -452,6 +546,9 @@ export default function Header() {
                 px-3
                 py-3
                 sm:px-4
+                lg:grid
+                lg:grid-cols-[240px_minmax(0,1fr)_auto]
+                lg:gap-3
                 lg:px-5
               "
             >
@@ -482,31 +579,45 @@ export default function Header() {
                 <Menu size={25} />
               </button>
 
-              <Logo />
+              <div className="flex min-w-0 shrink-0 items-center">
+                <Logo />
+              </div>
 
-             {settings.searchEnabled && (
-            <HeaderSearch />
-            )}
+              <div
+                className="
+                  min-w-0
+                  flex-1
+                  lg:-ml-12
+                  lg:w-[calc(100%+3rem)]
+                  lg:flex-none
+                "
+              >
+                {settings.searchEnabled && (
+                  <HeaderSearch />
+                )}
+              </div>
 
-{settings.cartEnabled && (
-  <CartButton
-    mobile
-    cartCount={cartCount}
-    onClick={openCartDrawer}
-  />
-)}
+              {settings.cartEnabled && (
+                <CartButton
+                  mobile
+                  cartCount={cartCount}
+                  onClick={openCartDrawer}
+                />
+              )}
 
-              <DesktopActions
-                pathname={
-                  pathname
-                }
-                cartCount={
-                  cartCount
-                }
-                onOpenCart={
-                  openCartDrawer
-                }
-              />
+              <div className="flex shrink-0 items-center justify-end">
+                <DesktopActions
+                  pathname={
+                    pathname
+                  }
+                  cartCount={
+                    cartCount
+                  }
+                  onOpenCart={
+                    openCartDrawer
+                  }
+                />
+              </div>
             </div>
           </div>
         </div>

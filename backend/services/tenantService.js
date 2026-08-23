@@ -34,6 +34,25 @@ const {
 const DEFAULT_PLAN = "Standard";
 const DEFAULT_TRIAL_DAYS = 7;
 
+/*
+ * Optional stable identifiers for the default TownMela tenant.
+ *
+ * Existing TownMela name/slug detection remains as a fallback, so these
+ * environment variables are not required for the current database.
+ * They are useful if the default tenant's visible names are changed later.
+ */
+const DEFAULT_TOWNMELA_TENANT_ID =
+  String(
+    process.env.DEFAULT_TOWNMELA_TENANT_ID ||
+      ""
+  ).trim();
+
+const DEFAULT_TOWNMELA_TENANT_CODE =
+  String(
+    process.env.DEFAULT_TOWNMELA_TENANT_CODE ||
+      ""
+  ).trim();
+
 const TENANT_CODE_PREFIX =
   "SRESTE_202609";
 
@@ -148,6 +167,84 @@ const normalizeSlug = (
     .replace(
       /^-+|-+$/g,
       ""
+    );
+
+const normalizeTenantIdentity =
+  (value) =>
+    normalizeText(value)
+      .toLowerCase()
+      .replace(
+        /[^a-z0-9]/g,
+        ""
+      );
+
+const isDefaultTownMelaTenant =
+  (tenant) => {
+    const tenantId =
+      String(
+        tenant?._id ||
+          tenant?.id ||
+          ""
+      ).trim();
+
+    const tenantCode =
+      normalizeText(
+        tenant?.tenantCode
+      );
+
+    if (
+      DEFAULT_TOWNMELA_TENANT_ID &&
+      tenantId ===
+        DEFAULT_TOWNMELA_TENANT_ID
+    ) {
+      return true;
+    }
+
+    if (
+      DEFAULT_TOWNMELA_TENANT_CODE &&
+      tenantCode.toLowerCase() ===
+        DEFAULT_TOWNMELA_TENANT_CODE.toLowerCase()
+    ) {
+      return true;
+    }
+
+    return [
+      tenant?.storeName,
+      tenant?.businessName,
+      tenant?.slug,
+    ].some(
+      (value) =>
+        normalizeTenantIdentity(
+          value
+        ) ===
+        "townmela"
+    );
+  };
+
+const preventDefaultTenantDeactivation =
+  (
+    tenant,
+    requestedStatus
+  ) => {
+    if (
+      isDefaultTownMelaTenant(
+        tenant
+      ) &&
+      requestedStatus !==
+        "active"
+    ) {
+      throw createServiceError(
+        "The default TownMela tenant must always remain active.",
+        403
+      );
+    }
+  };
+
+const preventDefaultTenantSuspension =
+  (tenant) =>
+    preventDefaultTenantDeactivation(
+      tenant,
+      "suspended"
     );
 
 const escapeRegExp = (
@@ -579,6 +676,34 @@ const synchronizeSubscriptionStatus =
       return tenant;
     }
 
+    /*
+     * The default TownMela tenant is the platform/default tenant.
+     * Its tenant status must always remain active and it is excluded
+     * from automatic trial/subscription suspension.
+     */
+    if (
+      isDefaultTownMelaTenant(
+        tenant
+      )
+    ) {
+      if (
+        tenant.status !==
+        "active"
+      ) {
+        tenant.status =
+          "active";
+
+        await tenant.save();
+      }
+
+      await setTenantUsersActiveState(
+        tenant._id,
+        true
+      );
+
+      return tenant;
+    }
+
     const now =
       new Date();
 
@@ -667,10 +792,20 @@ const suspendExpiredTenants =
               },
           },
         ],
-      }).select("_id");
+      }).select(
+        "_id tenantCode storeName businessName slug"
+      );
+
+    const suspendableExpiredTenants =
+      expiredTenants.filter(
+        (tenant) =>
+          !isDefaultTownMelaTenant(
+            tenant
+          )
+      );
 
     if (
-      expiredTenants.length ===
+      suspendableExpiredTenants.length ===
       0
     ) {
       return {
@@ -681,7 +816,7 @@ const suspendExpiredTenants =
     }
 
     const tenantIds =
-      expiredTenants.map(
+      suspendableExpiredTenants.map(
         (tenant) =>
           tenant._id
       );
@@ -1667,7 +1802,19 @@ const getTenantById =
       tenant
     );
 
-    return tenant;
+    const tenantObject =
+      typeof tenant.toObject ===
+      "function"
+        ? tenant.toObject()
+        : tenant;
+
+    return {
+      ...tenantObject,
+      isDefaultTenant:
+        isDefaultTownMelaTenant(
+          tenant
+        ),
+    };
   };
 
 /* =====================================================
@@ -1702,6 +1849,11 @@ const updateTenant =
     await synchronizeSubscriptionStatus(
       tenant
     );
+
+    const editingDefaultTenant =
+      isDefaultTownMelaTenant(
+        tenant
+      );
 
     const nextSlug =
       payload.slug !==
@@ -2076,8 +2228,24 @@ const updateTenant =
         );
     }
 
+    if (
+      editingDefaultTenant
+    ) {
+      tenant.status =
+        "active";
+    }
+
     try {
       await tenant.save();
+
+      if (
+        editingDefaultTenant
+      ) {
+        await setTenantUsersActiveState(
+          tenant._id,
+          true
+        );
+      }
 
       return tenant;
     } catch (error) {
@@ -2115,6 +2283,29 @@ const updateTenantStatus =
       await findTenantByIdOrFail(
         tenantId
       );
+
+    if (
+      isDefaultTownMelaTenant(
+        tenant
+      )
+    ) {
+      preventDefaultTenantDeactivation(
+        tenant,
+        normalizedStatus
+      );
+
+      tenant.status =
+        "active";
+
+      await tenant.save();
+
+      await setTenantUsersActiveState(
+        tenant._id,
+        true
+      );
+
+      return tenant;
+    }
 
     await synchronizeSubscriptionStatus(
       tenant
@@ -2192,6 +2383,127 @@ const updateTenantStatus =
       tenant._id,
       normalizedStatus ===
         "active"
+    );
+
+    return tenant;
+  };
+
+/* =====================================================
+   EXTEND TRIAL
+===================================================== */
+
+const extendTrial =
+  async (
+    tenantId,
+    payload = {}
+  ) => {
+    const tenant =
+      await findTenantByIdOrFail(
+        tenantId
+      );
+
+    const additionalDays =
+      Number.parseInt(
+        payload.additionalDays ??
+          payload.durationDays,
+        10
+      );
+
+    if (
+      !Number.isInteger(
+        additionalDays
+      ) ||
+      additionalDays < 1
+    ) {
+      throw createServiceError(
+        "A valid number of additional trial days is required"
+      );
+    }
+
+    if (
+      !tenant.subscription ||
+      tenant.subscription
+        .isTrial !== true
+    ) {
+      throw createServiceError(
+        "Only trial tenants can have their trial period extended",
+        400
+      );
+    }
+
+    const now =
+      new Date();
+
+    const currentTrialEndsAt =
+      tenant.subscription
+        .trialEndsAt
+        ? new Date(
+            tenant.subscription
+              .trialEndsAt
+          )
+        : null;
+
+    const baseDate =
+      currentTrialEndsAt &&
+      !Number.isNaN(
+        currentTrialEndsAt
+          .getTime()
+      ) &&
+      currentTrialEndsAt > now
+        ? currentTrialEndsAt
+        : now;
+
+    const newTrialEndsAt =
+      addDays(
+        baseDate,
+        additionalDays
+      );
+
+    const currentTrialDays =
+      Number(
+        tenant.subscription
+          .trialDays
+      );
+
+    tenant.subscription.plan =
+      DEFAULT_PLAN;
+
+    tenant.subscription.isTrial =
+      true;
+
+    tenant.subscription.trialDays =
+      (
+        Number.isFinite(
+          currentTrialDays
+        )
+          ? currentTrialDays
+          : DEFAULT_TRIAL_DAYS
+      ) +
+      additionalDays;
+
+    tenant.subscription.trialEndsAt =
+      newTrialEndsAt;
+
+    /*
+      While the tenant is on trial, expiresAt mirrors
+      trialEndsAt so the existing expiry logic remains
+      consistent.
+    */
+
+    tenant.subscription.expiresAt =
+      newTrialEndsAt;
+
+    tenant.subscription.status =
+      "trial";
+
+    tenant.status =
+      "active";
+
+    await tenant.save();
+
+    await setTenantUsersActiveState(
+      tenant._id,
+      true
     );
 
     return tenant;
@@ -2330,6 +2642,10 @@ const suspendTenant =
         tenantId
       );
 
+    preventDefaultTenantSuspension(
+      tenant
+    );
+
     tenant.status =
       "suspended";
 
@@ -2446,6 +2762,17 @@ const softDeleteTenant =
         tenantId
       );
 
+    if (
+      isDefaultTownMelaTenant(
+        tenant
+      )
+    ) {
+      throw createServiceError(
+        "The default TownMela tenant cannot be deleted.",
+        403
+      );
+    }
+
     tenant.isDeleted =
       true;
 
@@ -2548,6 +2875,7 @@ module.exports = {
   getTenantById,
   updateTenant,
   updateTenantStatus,
+  extendTrial,
   renewSubscription,
   suspendTenant,
   activateTenant,

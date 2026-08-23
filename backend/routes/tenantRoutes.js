@@ -5,6 +5,7 @@ const tenantController = require("../controllers/tenantController");
 const {
   protect,
   adminOnly,
+  allowRoles,
 } = require("../middleware/authMiddleware");
 
 const router = express.Router();
@@ -34,9 +35,7 @@ router.get(
  * All routes below are protected.
  *
  * IMPORTANT:
- * These tenant-management endpoints should be available only to the
- * TownMela platform owner/admin. If your project later has a separate
- * platformOwnerOnly middleware, add it here after protect.
+ * Existing tenant-management protection is preserved.
  */
 router.use(protect, adminOnly);
 
@@ -78,6 +77,22 @@ router.get("/", tenantController.getTenants);
 ===================================================== */
 
 /**
+ * PATCH /api/tenants/:tenantId/trial/extend
+ *
+ * Super Admin only.
+ *
+ * Example body:
+ * {
+ *   "additionalDays": 7
+ * }
+ */
+router.patch(
+  "/:tenantId/trial/extend",
+  allowRoles("superadmin"),
+  tenantController.extendTrial
+);
+
+/**
  * PATCH /api/tenants/:tenantId/subscription/renew
  *
  * Example body:
@@ -106,6 +121,8 @@ router.patch(
 
 /**
  * PATCH /api/tenants/:tenantId/suspend
+ *
+ * The backend service blocks suspension of the default TownMela tenant.
  */
 router.patch(
   "/:tenantId/suspend",
@@ -116,7 +133,7 @@ router.patch(
  * PATCH /api/tenants/:tenantId/activate
  *
  * An expired tenant cannot be activated until the Standard
- * subscription is renewed.
+ * subscription is renewed or its trial is extended.
  */
 router.patch(
   "/:tenantId/activate",

@@ -197,7 +197,7 @@ const updateTenant = async (req, res) => {
  * }
  *
  * An expired tenant cannot be activated until its subscription
- * is renewed.
+ * is renewed or its trial is extended.
  */
 const updateTenantStatus = async (req, res) => {
   try {
@@ -208,6 +208,40 @@ const updateTenantStatus = async (req, res) => {
 
     return sendSuccess(res, {
       message: "Tenant status updated successfully",
+      data: {
+        tenant,
+      },
+    });
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
+/* =====================================================
+   EXTEND TRIAL
+===================================================== */
+
+/**
+ * PATCH /api/tenants/:tenantId/trial/extend
+ *
+ * Request body:
+ * {
+ *   "additionalDays": 7
+ * }
+ *
+ * - Active trial: days are added after the current trial end date.
+ * - Expired trial: extension starts from the current date.
+ * - Tenant is reactivated after a successful extension.
+ */
+const extendTrial = async (req, res) => {
+  try {
+    const tenant = await tenantService.extendTrial(
+      req.params.tenantId,
+      req.body
+    );
+
+    return sendSuccess(res, {
+      message: "Tenant trial extended successfully",
       data: {
         tenant,
       },
@@ -264,6 +298,9 @@ const renewSubscription = async (req, res) => {
 
 /**
  * PATCH /api/tenants/:tenantId/suspend
+ *
+ * The default TownMela tenant is protected by the service and
+ * cannot be suspended.
  */
 const suspendTenant = async (req, res) => {
   try {
@@ -290,7 +327,7 @@ const suspendTenant = async (req, res) => {
  * PATCH /api/tenants/:tenantId/activate
  *
  * Activation succeeds only when:
- * - the 7-day trial is still valid, or
+ * - the trial is still valid, or
  * - the paid subscription has not expired.
  */
 const activateTenant = async (req, res) => {
@@ -375,7 +412,7 @@ const getTenantByDomain = async (req, res) => {
  * - an internal scheduler/cron job.
  *
  * It suspends:
- * - expired 7-day trials
+ * - expired trials
  * - expired paid subscriptions
  */
 const suspendExpiredTenants = async (req, res) => {
@@ -403,6 +440,7 @@ module.exports = {
   getTenantById,
   updateTenant,
   updateTenantStatus,
+  extendTrial,
   renewSubscription,
   suspendTenant,
   activateTenant,

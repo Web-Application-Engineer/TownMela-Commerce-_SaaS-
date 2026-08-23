@@ -23,8 +23,7 @@ export default function HeaderManagementHeader() {
         </h1>
 
         <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">
-          Manage your store logo, business information,
-          navigation and header options.
+          Manage your store logo, announcement bar and contact information.
         </p>
       </div>
     </div>
