@@ -103,6 +103,39 @@ type ImageUploadResponse = {
   imageUrl?: string;
 };
 
+type CategoryApiItem = {
+  _id?: string;
+  id?: string;
+  name?: string;
+  title?: string;
+  label?: string;
+  categoryName?: string;
+  slug?: string;
+  isActive?: boolean;
+  enabled?: boolean;
+  status?: string;
+};
+
+type CategoriesResponse =
+  | CategoryApiItem[]
+  | {
+      success?: boolean;
+      message?: string;
+      categories?: CategoryApiItem[];
+      data?:
+        | CategoryApiItem[]
+        | {
+            categories?: CategoryApiItem[];
+          };
+    };
+
+type CategoryOption = {
+  id: string;
+  label: string;
+  slug: string;
+  url: string;
+};
+
 /* =========================================================
    DEFAULTS
 ========================================================= */
@@ -204,6 +237,143 @@ const getStoredValue = (
   return "";
 };
 
+function normalizeCategorySlug(
+  value: string,
+) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function createCategoryOption(
+  item: CategoryApiItem,
+): CategoryOption | null {
+  const label =
+    String(
+      item.name ||
+        item.title ||
+        item.label ||
+        item.categoryName ||
+        "",
+    ).trim();
+
+  const slug =
+    String(item.slug || "").trim() ||
+    normalizeCategorySlug(label);
+
+  if (!label || !slug) {
+    return null;
+  }
+
+  if (
+    item.isActive === false ||
+    item.enabled === false
+  ) {
+    return null;
+  }
+
+  const status =
+    String(item.status || "")
+      .trim()
+      .toLowerCase();
+
+  if (
+    [
+      "inactive",
+      "disabled",
+      "deleted",
+    ].includes(status)
+  ) {
+    return null;
+  }
+
+  return {
+    id: String(
+      item._id ||
+        item.id ||
+        slug,
+    ),
+    label,
+    slug,
+    url: `/shop?category=${encodeURIComponent(
+      slug,
+    )}`,
+  };
+}
+
+
+function createFooterMenuUrl(
+  label: string,
+) {
+  const normalizedLabel =
+    label
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+
+  const knownRoutes:
+    Record<string, string> = {
+      shop: "/shop",
+      "about us": "/about-us",
+      "contact us": "/contact-us",
+      "privacy policy": "/privacy-policy",
+      "terms & conditions":
+        "/terms-and-conditions",
+      "terms and conditions":
+        "/terms-and-conditions",
+      "return & refund policy":
+        "/return-refund-policy",
+      "return and refund policy":
+        "/return-refund-policy",
+      "track orders":
+        "/order-tracking",
+      "order tracking":
+        "/order-tracking",
+      cart: "/cart",
+      checkout: "/checkout",
+      "my account":
+        "/my-account",
+      "customer complaint":
+        "/customer-complaint",
+    };
+
+  if (!normalizedLabel) {
+    return "";
+  }
+
+  if (
+    knownRoutes[
+      normalizedLabel
+    ]
+  ) {
+    return knownRoutes[
+      normalizedLabel
+    ];
+  }
+
+  const slug =
+    normalizedLabel
+      .replace(/&/g, " and ")
+      .replace(
+        /['’]/g,
+        "",
+      )
+      .replace(
+        /[^a-z0-9]+/g,
+        "-",
+      )
+      .replace(
+        /^-+|-+$/g,
+        "",
+      );
+
+  return slug
+    ? `/${slug}`
+    : "";
+}
+
 /* =========================================================
    FOOTER MANAGEMENT CLIENT
 ========================================================= */
@@ -253,11 +423,34 @@ export default function FooterManagementClient() {
   ] =
     useState("");
 
+  const [
+    categoryOptions,
+    setCategoryOptions,
+  ] =
+    useState<CategoryOption[]>(
+      [],
+    );
+
+  const [
+    isCategoriesLoading,
+    setIsCategoriesLoading,
+  ] =
+    useState(false);
+
+  const [
+    categoriesError,
+    setCategoriesError,
+  ] =
+    useState("");
+
   /*
    * Prevent an older tenant request from overwriting
    * the newly selected tenant's footer data.
    */
   const loadRequestIdRef =
+    useRef(0);
+
+  const categoryRequestIdRef =
     useRef(0);
 
   /* =======================================================
@@ -301,6 +494,176 @@ export default function FooterManagementClient() {
           selectedTenantId,
       };
     }, [
+      selectedTenantId,
+    ]);
+
+  /* =======================================================
+     LOAD CREATED CATEGORIES
+  ======================================================= */
+
+  const loadCategories =
+    useCallback(async () => {
+      const requestId =
+        ++categoryRequestIdRef.current;
+
+      if (loadingTenants) {
+        return;
+      }
+
+      if (!selectedTenantId) {
+        setCategoryOptions([]);
+        setCategoriesError("");
+        setIsCategoriesLoading(false);
+        return;
+      }
+
+      try {
+        setIsCategoriesLoading(true);
+        setCategoriesError("");
+
+        const response =
+          await fetch(
+            `${API_BASE_URL}/api/categories`,
+            {
+              method: "GET",
+
+              headers:
+                buildHeaders(),
+
+              credentials:
+                "include",
+
+              cache:
+                "no-store",
+            },
+          );
+
+        const payload =
+          (await response
+            .json()
+            .catch(
+              () => null,
+            )) as
+            | CategoriesResponse
+            | null;
+
+        if (!response.ok) {
+          const message =
+            !Array.isArray(payload)
+              ? payload?.message
+              : "";
+
+          throw new Error(
+            message ||
+              "Failed to load categories.",
+          );
+        }
+
+        let categoryList:
+          CategoryApiItem[] = [];
+
+        if (Array.isArray(payload)) {
+          categoryList = payload;
+        } else if (
+          Array.isArray(
+            payload?.categories,
+          )
+        ) {
+          categoryList =
+            payload.categories;
+        } else if (
+          Array.isArray(
+            payload?.data,
+          )
+        ) {
+          categoryList =
+            payload.data;
+        } else if (
+          payload?.data &&
+          !Array.isArray(
+            payload.data,
+          ) &&
+          Array.isArray(
+            payload.data.categories,
+          )
+        ) {
+          categoryList =
+            payload.data.categories;
+        }
+
+        const seenSlugs =
+          new Set<string>();
+
+        const nextOptions =
+          categoryList
+            .map(
+              createCategoryOption,
+            )
+            .filter(
+              (
+                option,
+              ): option is CategoryOption =>
+                Boolean(option),
+            )
+            .filter((option) => {
+              if (
+                seenSlugs.has(
+                  option.slug,
+                )
+              ) {
+                return false;
+              }
+
+              seenSlugs.add(
+                option.slug,
+              );
+
+              return true;
+            });
+
+        if (
+          requestId !==
+          categoryRequestIdRef.current
+        ) {
+          return;
+        }
+
+        setCategoryOptions(
+          nextOptions,
+        );
+      } catch (error) {
+        if (
+          requestId !==
+          categoryRequestIdRef.current
+        ) {
+          return;
+        }
+
+        console.error(
+          "Footer category loading error:",
+          error,
+        );
+
+        setCategoryOptions([]);
+
+        setCategoriesError(
+          error instanceof Error
+            ? error.message
+            : "Failed to load categories.",
+        );
+      } finally {
+        if (
+          requestId ===
+          categoryRequestIdRef.current
+        ) {
+          setIsCategoriesLoading(
+            false,
+          );
+        }
+      }
+    }, [
+      buildHeaders,
+      loadingTenants,
       selectedTenantId,
     ]);
 
@@ -468,6 +831,12 @@ export default function FooterManagementClient() {
     void loadSettings();
   }, [
     loadSettings,
+  ]);
+
+  useEffect(() => {
+    void loadCategories();
+  }, [
+    loadCategories,
   ]);
 
   /* =======================================================
@@ -776,21 +1145,99 @@ export default function FooterManagementClient() {
       | boolean
       | number,
   ) {
-    updateSetting(
-      field,
-      settings[field].map(
-        (
-          item,
-          itemIndex,
-        ) =>
-          itemIndex === index
-            ? {
+    setSettings(
+      (current) => ({
+        ...current,
+
+        [field]:
+          current[field].map(
+            (
+              item,
+              itemIndex,
+            ) => {
+              if (
+                itemIndex !== index
+              ) {
+                return item;
+              }
+
+              if (
+                key === "label"
+              ) {
+                const label =
+                  String(value);
+
+                const previousAutoUrl =
+                  createFooterMenuUrl(
+                    item.label,
+                  );
+
+                const shouldUpdateUrl =
+                  !item.url.trim() ||
+                  item.url ===
+                    previousAutoUrl;
+
+                return {
+                  ...item,
+                  label,
+                  url:
+                    shouldUpdateUrl
+                      ? createFooterMenuUrl(
+                          label,
+                        )
+                      : item.url,
+                };
+              }
+
+              return {
                 ...item,
                 [key]: value,
-              }
-            : item,
-      ),
+              };
+            },
+          ),
+      }),
     );
+
+    setSuccessMessage("");
+  }
+
+  function updatePopularCategorySelection(
+    index: number,
+    categoryUrl: string,
+  ) {
+    const category =
+      categoryOptions.find(
+        (option) =>
+          option.url ===
+          categoryUrl,
+      );
+
+    setSettings(
+      (current) => ({
+        ...current,
+
+        popularCategoryLinks:
+          current.popularCategoryLinks.map(
+            (
+              item,
+              itemIndex,
+            ) =>
+              itemIndex === index
+                ? {
+                    ...item,
+                    label:
+                      category?.label ||
+                      "",
+                    url:
+                      category?.url ||
+                      "",
+                  }
+                : item,
+          ),
+      }),
+    );
+
+    setSuccessMessage("");
   }
 
   function removeLinkFromGroup(
@@ -1541,12 +1988,17 @@ export default function FooterManagementClient() {
           POPULAR CATEGORY
       =================================================== */}
 
-      <FooterMenuEditor
-        title="Popular Category"
-        description="Manage the Popular Category heading and links shown in the footer."
+      <PopularCategoryEditor
         heading={settings.popularCategoryHeading}
         enabled={settings.showPopularCategory}
         links={settings.popularCategoryLinks}
+        categories={categoryOptions}
+        isCategoriesLoading={
+          isCategoriesLoading
+        }
+        categoriesError={
+          categoriesError
+        }
         onHeadingChange={(value) =>
           updateSetting(
             "popularCategoryHeading",
@@ -1562,6 +2014,15 @@ export default function FooterManagementClient() {
         onAdd={() =>
           addLinkToGroup(
             "popularCategoryLinks",
+          )
+        }
+        onCategoryChange={(
+          index,
+          categoryUrl,
+        ) =>
+          updatePopularCategorySelection(
+            index,
+            categoryUrl,
           )
         }
         onChange={(
@@ -1880,6 +2341,289 @@ export default function FooterManagementClient() {
 }
 
 /* =========================================================
+   POPULAR CATEGORY EDITOR
+========================================================= */
+
+function PopularCategoryEditor({
+  heading,
+  enabled,
+  links,
+  categories,
+  isCategoriesLoading,
+  categoriesError,
+  onHeadingChange,
+  onEnabledChange,
+  onAdd,
+  onCategoryChange,
+  onChange,
+  onRemove,
+}: {
+  heading: string;
+  enabled: boolean;
+  links: FooterLink[];
+  categories: CategoryOption[];
+  isCategoriesLoading: boolean;
+  categoriesError: string;
+  onHeadingChange: (
+    value: string,
+  ) => void;
+  onEnabledChange: (
+    value: boolean,
+  ) => void;
+  onAdd: () => void;
+  onCategoryChange: (
+    index: number,
+    categoryUrl: string,
+  ) => void;
+  onChange: (
+    index: number,
+    field: keyof FooterLink,
+    value:
+      | string
+      | boolean
+      | number,
+  ) => void;
+  onRemove: (
+    index: number,
+  ) => void;
+}) {
+  return (
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-black text-[#0B1F3A]">
+            Popular Category
+          </h2>
+
+          <p className="mt-1 text-sm text-gray-500">
+            Select only categories already created for the current tenant.
+          </p>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm font-bold text-gray-600">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(event) =>
+              onEnabledChange(
+                event.target.checked,
+              )
+            }
+            className="h-4 w-4 accent-[#FF6900]"
+          />
+
+          Show section
+        </label>
+      </div>
+
+      <div className="mt-5">
+        <label className="mb-2 block text-sm font-bold text-gray-700">
+          Section Heading
+        </label>
+
+        <input
+          type="text"
+          value={heading}
+          onChange={(event) =>
+            onHeadingChange(
+              event.target.value,
+            )
+          }
+          className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-orange-300"
+        />
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold text-gray-700">
+            Menu Links
+          </p>
+
+          <p className="mt-1 text-xs leading-5 text-gray-500">
+            Category name and URL are generated automatically from Product Categories.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={onAdd}
+          disabled={
+            isCategoriesLoading ||
+            categories.length === 0
+          }
+          className="inline-flex items-center gap-2 rounded-xl bg-[#0B1F3A] px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isCategoriesLoading ? (
+            <LoaderCircle
+              size={16}
+              className="animate-spin"
+            />
+          ) : (
+            <Plus size={16} />
+          )}
+
+          Add Category
+        </button>
+      </div>
+
+      {categoriesError && (
+        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
+          {categoriesError}
+        </div>
+      )}
+
+      {!categoriesError &&
+        !isCategoriesLoading &&
+        categories.length === 0 && (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-700">
+            No created categories are available. Create a Product Category first.
+          </div>
+        )}
+
+      <div className="mt-4 space-y-3">
+        {links.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-gray-300 p-5 text-center text-sm text-gray-500">
+            No popular category selected yet.
+          </div>
+        ) : (
+          links.map(
+            (
+              item,
+              index,
+            ) => {
+              const matchedCategory =
+                categories.find(
+                  (category) =>
+                    category.url ===
+                      item.url ||
+                    category.label
+                      .trim()
+                      .toLowerCase() ===
+                      item.label
+                        .trim()
+                        .toLowerCase(),
+                );
+
+              const selectedValue =
+                matchedCategory?.url ||
+                item.url ||
+                "";
+
+              const unavailableSelection =
+                Boolean(
+                  item.url &&
+                    !matchedCategory,
+                );
+
+              return (
+                <div
+                  key={`${item.url}-${index}`}
+                  className="grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-[minmax(0,1fr)_100px_auto_auto]"
+                >
+                  <select
+                    value={selectedValue}
+                    onChange={(event) =>
+                      onCategoryChange(
+                        index,
+                        event.target.value,
+                      )
+                    }
+                    disabled={
+                      isCategoriesLoading
+                    }
+                    aria-label={`Popular category ${index + 1}`}
+                    className="h-10 min-w-0 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-[#0B1F3A] outline-none focus:border-orange-300 disabled:cursor-not-allowed disabled:bg-gray-100"
+                  >
+                    <option value="">
+                      Select Category
+                    </option>
+
+                    {unavailableSelection && (
+                      <option
+                        value={item.url}
+                        disabled
+                      >
+                        {item.label ||
+                          "Previously selected category"}{" "}
+                        (Unavailable)
+                      </option>
+                    )}
+
+                    {categories.map(
+                      (category) => (
+                        <option
+                          key={
+                            category.id
+                          }
+                          value={
+                            category.url
+                          }
+                        >
+                          {
+                            category.label
+                          }
+                        </option>
+                      ),
+                    )}
+                  </select>
+
+                  <input
+                    type="number"
+                    min={1}
+                    value={item.order}
+                    onChange={(event) =>
+                      onChange(
+                        index,
+                        "order",
+                        Number(
+                          event.target.value,
+                        ) || 1,
+                      )
+                    }
+                    aria-label="Popular category order"
+                    title="Order"
+                    placeholder="Order"
+                    className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none"
+                  />
+
+                  <label className="flex items-center gap-2 text-sm font-bold text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={item.enabled}
+                      onChange={(event) =>
+                        onChange(
+                          index,
+                          "enabled",
+                          event.target.checked,
+                        )
+                      }
+                      className="h-4 w-4 accent-[#FF6900]"
+                    />
+
+                    Show
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onRemove(index)
+                    }
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600"
+                    aria-label="Remove popular category"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              );
+            },
+          )
+        )}
+      </div>
+    </section>
+  );
+}
+
+/* =========================================================
    REUSABLE FOOTER MENU EDITOR
 ========================================================= */
 
@@ -1966,9 +2710,15 @@ function FooterMenuEditor({
       </div>
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm font-bold text-gray-700">
-          Menu Links
-        </p>
+        <div>
+          <p className="text-sm font-bold text-gray-700">
+            Menu Links
+          </p>
+
+          <p className="mt-1 text-xs text-gray-500">
+            Enter the menu name. The menu link is generated automatically, but you can customize it if needed.
+          </p>
+        </div>
 
         <button
           type="button"
@@ -1992,7 +2742,7 @@ function FooterMenuEditor({
               index,
             ) => (
               <div
-                key={`${item.label}-${index}`}
+                key={`${title}-${index}`}
                 className="grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-[1fr_1fr_100px_auto_auto]"
               >
                 <input
@@ -2019,8 +2769,10 @@ function FooterMenuEditor({
                       event.target.value,
                     )
                   }
-                  placeholder="/page-or-category"
-                  className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none"
+                  aria-label="Menu link"
+                  title="Generated automatically from the menu name, but you can customize it."
+                  placeholder="Auto-generated link"
+                  className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-orange-300"
                 />
 
                 <input
