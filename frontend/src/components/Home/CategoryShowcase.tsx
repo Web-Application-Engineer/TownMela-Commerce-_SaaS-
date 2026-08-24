@@ -39,6 +39,33 @@ const STORAGE_KEY =
 const CHANNEL_NAME =
   "townmela-homepage-management";
 
+const TENANT_STORAGE_KEYS = [
+  "selectedTenantId",
+  "activeTenantId",
+  "tenantId",
+  "tenant_id",
+] as const;
+
+const getTenantHeaders = (): HeadersInit => {
+  if (typeof window === "undefined") {
+    return { Accept: "application/json" };
+  }
+
+  for (const key of TENANT_STORAGE_KEYS) {
+    const tenantId =
+      window.localStorage.getItem(key)?.trim() || "";
+
+    if (/^[a-f\d]{24}$/i.test(tenantId)) {
+      return {
+        Accept: "application/json",
+        "X-Tenant-Id": tenantId,
+      };
+    }
+  }
+
+  return { Accept: "application/json" };
+};
+
 /* =========================================================
    TYPES
 ========================================================= */
@@ -53,7 +80,11 @@ type ShowcaseCategory = {
 };
 
 type ShowcaseSlots = {
+  key?: string;
   title?: string;
+  active?: boolean;
+  order?: number;
+  layoutOrder?: number;
   categoryOne: ShowcaseCategory | null;
   categoryTwo: ShowcaseCategory | null;
   categoryThree: ShowcaseCategory | null;
@@ -62,9 +93,10 @@ type ShowcaseSlots = {
 type ShowcaseConfig = {
   _id: string;
   key: "homepage-category-showcase";
-  showcaseOne: ShowcaseSlots;
-  showcaseTwo: ShowcaseSlots;
-  showcaseThree: ShowcaseSlots;
+  showcases?: ShowcaseSlots[];
+  showcaseOne?: ShowcaseSlots;
+  showcaseTwo?: ShowcaseSlots;
+  showcaseThree?: ShowcaseSlots;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -75,10 +107,7 @@ type ApiResponse = {
   message?: string;
 };
 
-export type CategoryShowcaseKey =
-  | "showcaseOne"
-  | "showcaseTwo"
-  | "showcaseThree";
+export type CategoryShowcaseKey = string;
 
 type CategoryShowcaseProps = {
   showcaseKey: CategoryShowcaseKey;
@@ -86,6 +115,39 @@ type CategoryShowcaseProps = {
   showAllText?: string;
   showAllLink?: string;
   emptyMessage?: string;
+};
+
+/* =========================================================
+   SHOWCASE SELECTOR
+========================================================= */
+
+const getShowcaseSlots = (
+  config: ShowcaseConfig,
+  showcaseKey: string,
+): ShowcaseSlots | null => {
+  const dynamicShowcase = Array.isArray(config.showcases)
+    ? config.showcases.find(
+        (showcase) => showcase.key === showcaseKey,
+      )
+    : undefined;
+
+  if (dynamicShowcase) {
+    return dynamicShowcase;
+  }
+
+  if (showcaseKey === "showcaseOne") {
+    return config.showcaseOne ?? null;
+  }
+
+  if (showcaseKey === "showcaseTwo") {
+    return config.showcaseTwo ?? null;
+  }
+
+  if (showcaseKey === "showcaseThree") {
+    return config.showcaseThree ?? null;
+  }
+
+  return null;
 };
 
 /* =========================================================
@@ -153,9 +215,7 @@ export default function CategoryShowcase({
 
         const response = await fetch(ENDPOINT, {
           method: "GET",
-          headers: {
-            Accept: "application/json",
-          },
+          headers: getTenantHeaders(),
           cache: "no-store",
           signal: options?.signal,
         });
@@ -177,7 +237,10 @@ export default function CategoryShowcase({
         }
 
         setShowcaseSlots(
-          data.showcaseConfig[showcaseKey]
+          getShowcaseSlots(
+            data.showcaseConfig,
+            showcaseKey,
+          ),
         );
       } catch (error) {
         if (
@@ -334,6 +397,10 @@ export default function CategoryShowcase({
         category?.status !== false
     );
   }, [showcaseSlots]);
+
+  if (showcaseSlots?.active === false) {
+    return null;
+  }
 
   /* =======================================================
      LOADING STATE

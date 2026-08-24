@@ -34,8 +34,6 @@ export type PopularCategoryItem = {
 
 /* =========================================================
    SHARED CATEGORY TYPE
-
-   Category API এবং populated showcase category উভয়ের জন্য।
 ========================================================= */
 
 export type HomepageCategory = {
@@ -48,194 +46,110 @@ export type HomepageCategory = {
 };
 
 /* =========================================================
-   CATEGORY SHOWCASE KEYS
+   DYNAMIC CATEGORY SHOWCASE TYPES
 ========================================================= */
 
-export type CategoryShowcaseKey =
-  | "showcaseOne"
-  | "showcaseTwo"
-  | "showcaseThree";
+export type CategoryShowcaseKey = string;
 
 export type CategoryShowcaseSlotKey =
   | "categoryOne"
   | "categoryTwo"
   | "categoryThree";
 
-export type CategoryShowcaseNumber =
-  | 1
-  | 2
-  | 3;
-
-export type CategoryShowcasePositionNumber =
-  | 1
-  | 2
-  | 3;
-
-/* =========================================================
-   BACKEND POPULATED CATEGORY SLOT TYPES
-
-   GET API response-এ প্রতিটি showcase section-এর মধ্যে:
-
-   - title
-   - categoryOne
-   - categoryTwo
-   - categoryThree
-
-   থাকবে।
-========================================================= */
+export type CategoryShowcasePositionNumber = 1 | 2 | 3;
 
 export type CategoryShowcasePopulatedSlot =
   HomepageCategory | null;
 
 export type CategoryShowcaseSlots = {
+  key?: string;
   title: string;
-
-  categoryOne:
-    CategoryShowcasePopulatedSlot;
-
-  categoryTwo:
-    CategoryShowcasePopulatedSlot;
-
-  categoryThree:
-    CategoryShowcasePopulatedSlot;
+  active?: boolean;
+  order?: number;
+  layoutOrder?: number;
+  categoryOne: CategoryShowcasePopulatedSlot;
+  categoryTwo: CategoryShowcasePopulatedSlot;
+  categoryThree: CategoryShowcasePopulatedSlot;
 };
 
-/* =========================================================
-   BACKEND UPDATE SLOT TYPES
-
-   PUT API request-এ প্রতিটি showcase section-এর জন্য:
-
-   - title
-   - category ID অথবা null
-
-   পাঠানো হবে।
-========================================================= */
+export type HomepageCategoryShowcaseItem = {
+  _id?: string;
+  key: string;
+  title: string;
+  active: boolean;
+  order: number;
+  layoutOrder: number;
+  categoryOne: CategoryShowcasePopulatedSlot;
+  categoryTwo: CategoryShowcasePopulatedSlot;
+  categoryThree: CategoryShowcasePopulatedSlot;
+};
 
 export type CategoryShowcaseUpdateSlots = {
+  key: string;
   title: string;
-
+  active: boolean;
+  order: number;
+  layoutOrder: number;
   categoryOne: string | null;
-
   categoryTwo: string | null;
-
   categoryThree: string | null;
 };
 
-/* =========================================================
-   HOMEPAGE CATEGORY SHOWCASE CONFIG
-
-   Backend document-এর exact structure।
-========================================================= */
-
 export type HomepageCategoryShowcaseConfig = {
   _id: string;
+  key: "homepage-category-showcase";
+  showcases: HomepageCategoryShowcaseItem[];
 
-  key:
-    "homepage-category-showcase";
-
-  showcaseOne:
-    CategoryShowcaseSlots;
-
-  showcaseTwo:
-    CategoryShowcaseSlots;
-
-  showcaseThree:
-    CategoryShowcaseSlots;
+  /* Legacy fields remain available for backward compatibility. */
+  showcaseOne: CategoryShowcaseSlots;
+  showcaseTwo: CategoryShowcaseSlots;
+  showcaseThree: CategoryShowcaseSlots;
 
   createdAt?: string;
-
   updatedAt?: string;
 };
 
-/* =========================================================
-   CATEGORY SHOWCASE API RESPONSE TYPES
-========================================================= */
-
 export type GetHomepageCategoryShowcasesResponse = {
   success: boolean;
-
-  showcaseConfig:
-    HomepageCategoryShowcaseConfig;
-
+  showcaseConfig: HomepageCategoryShowcaseConfig;
   message?: string;
 };
 
 export type UpdateHomepageCategoryShowcasesPayload = {
-  showcaseOne:
-    CategoryShowcaseUpdateSlots;
-
-  showcaseTwo:
-    CategoryShowcaseUpdateSlots;
-
-  showcaseThree:
-    CategoryShowcaseUpdateSlots;
+  showcases: CategoryShowcaseUpdateSlots[];
 };
 
 export type UpdateHomepageCategoryShowcasesResponse = {
   success: boolean;
-
   message: string;
-
-  showcaseConfig:
-    HomepageCategoryShowcaseConfig;
+  showcaseConfig: HomepageCategoryShowcaseConfig;
 };
 
 /* =========================================================
-   ADMIN UI CATEGORY SHOWCASE POSITION
-
-   Admin component-এর প্রতিটি fixed position-এর জন্য।
+   ADMIN UI CATEGORY SHOWCASE TYPES
 ========================================================= */
 
 export type CategoryShowcasePosition = {
   id: string;
-
-  slotKey:
-    CategoryShowcaseSlotKey;
-
-  position:
-    CategoryShowcasePositionNumber;
-
+  slotKey: CategoryShowcaseSlotKey;
+  position: CategoryShowcasePositionNumber;
   categoryId: string;
-
   categoryName: string;
-
   categorySlug: string;
-
   thumbnail: string;
-
   active: boolean;
 };
 
-/* =========================================================
-   ADMIN UI CATEGORY SHOWCASE
-
-   title:
-   Admin Dashboard card-এর fixed management heading।
-
-   sectionTitle:
-   Customer-facing homepage showcase title।
-========================================================= */
-
 export type CategoryShowcase = {
-  id:
-    CategoryShowcaseNumber;
-
-  key:
-    CategoryShowcaseKey;
-
+  id: string | number;
+  key: CategoryShowcaseKey;
   title: string;
-
   sectionTitle: string;
-
   description: string;
-
-  order:
-    CategoryShowcaseNumber;
-
+  order: number;
+  layoutOrder: number;
   active: boolean;
-
-  positions:
-    CategoryShowcasePosition[];
+  positions: CategoryShowcasePosition[];
 };
 
 /* =========================================================
@@ -243,18 +157,9 @@ export type CategoryShowcase = {
 ========================================================= */
 
 export type HomepageSettings = {
-  mainHeroBanners:
-    HomepageBanner[];
-
-  rightTopBanners:
-    HomepageBanner[];
-
-  rightBottomBanners:
-    HomepageBanner[];
-
-  popularCategories:
-    PopularCategoryItem[];
-
-  categoryShowcases:
-    CategoryShowcase[];
+  mainHeroBanners: HomepageBanner[];
+  rightTopBanners: HomepageBanner[];
+  rightBottomBanners: HomepageBanner[];
+  popularCategories: PopularCategoryItem[];
+  categoryShowcases: CategoryShowcase[];
 };

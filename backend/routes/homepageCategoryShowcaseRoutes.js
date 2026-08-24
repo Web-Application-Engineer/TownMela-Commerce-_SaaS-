@@ -1,9 +1,10 @@
+"use strict";
+
 const express = require("express");
 
-const resolvePublicTenant =
-  require(
-    "../middleware/resolvePublicTenant"
-  );
+const resolvePublicTenant = require(
+  "../middleware/resolvePublicTenant"
+);
 
 const {
   getHomepageCategoryShowcases,
@@ -25,8 +26,7 @@ const router = express.Router();
 /* =========================================================
    PUBLIC ROUTE
 
-   Homepage থেকে selected showcase categories load করবে।
-
+   Storefront loads tenant-specific dynamic category showcases.
    GET /api/homepage-category-showcases
 ========================================================= */
 
@@ -39,8 +39,8 @@ router.get(
 /* =========================================================
    ADMIN ROUTE
 
-   Admin Dashboard থেকে fixed ৯টি category slot update করবে।
-
+   Tenant Admin / SuperAdmin can save any number of showcase
+   sections, while each showcase keeps three category slots.
    PUT /api/homepage-category-showcases
 ========================================================= */
 
@@ -51,9 +51,5 @@ router.put(
   adminOnly,
   updateHomepageCategoryShowcases
 );
-
-/* =========================================================
-   EXPORT
-========================================================= */
 
 module.exports = router;

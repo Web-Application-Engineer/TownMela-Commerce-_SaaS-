@@ -11,24 +11,19 @@ import ExclusiveProducts from "./ExclusiveProducts";
 import TopSellingProducts from "./TopSellingProducts";
 import NewArrival from "./NewArrival";
 import WomenFashion from "./FashionAndStyle";
+import DynamicProductSection from "./DynamicProductSection";
+import CategoryShowcase from "./CategoryShowcase";
 
-import CategoryShowcaseOne from "./CategoryShowcaseOne";
-import CategoryShowcaseTwo from "./CategoryShowcaseTwo";
-import CategoryShowcaseThree from "./CategoryShowcaseThree";
-
-import type {
-  Product,
-} from "../../types/product";
+import type { Product } from "../../types/product";
 
 /* =========================================================
    API
 ========================================================= */
 
-const API_BASE_URL =
-  (
-    process.env.NEXT_PUBLIC_API_URL ??
-    "http://localhost:5000"
-  ).replace(/\/$/, "");
+const API_BASE_URL = (
+  process.env.NEXT_PUBLIC_API_URL ??
+  "http://localhost:5000"
+).replace(/\/$/, "");
 
 /* =========================================================
    TYPES
@@ -40,15 +35,35 @@ type HomepageProductSection = {
   title: string;
   active: boolean;
   order: number;
+  layoutOrder?: number;
 };
 
 type HomepageProductSectionResponse = {
   success: boolean;
   message?: string;
-
   data?: {
     sections?: HomepageProductSection[];
     isActive?: boolean;
+  };
+};
+
+type HomepageCategoryShowcaseItem = {
+  _id?: string;
+  key: string;
+  title: string;
+  active?: boolean;
+  order?: number;
+  layoutOrder?: number;
+};
+
+type HomepageCategoryShowcaseResponse = {
+  success: boolean;
+  message?: string;
+  showcaseConfig?: {
+    showcases?: HomepageCategoryShowcaseItem[];
+    showcaseOne?: { title?: string };
+    showcaseTwo?: { title?: string };
+    showcaseThree?: { title?: string };
   };
 };
 
@@ -57,8 +72,22 @@ type HomepageProductSectionsProps = {
   initialError?: string | null;
 };
 
+type HomepageLayoutItem =
+  | {
+      type: "product";
+      key: string;
+      layoutOrder: number;
+      section: HomepageProductSection;
+    }
+  | {
+      type: "category";
+      key: string;
+      layoutOrder: number;
+      showcase: HomepageCategoryShowcaseItem;
+    };
+
 /* =========================================================
-   DEFAULT SECTION ORDER
+   DEFAULTS
 ========================================================= */
 
 const DEFAULT_SECTIONS: HomepageProductSection[] = [
@@ -67,27 +96,52 @@ const DEFAULT_SECTIONS: HomepageProductSection[] = [
     title: "Top Selling",
     active: true,
     order: 1,
+    layoutOrder: 1,
   },
-
   {
     key: "exclusive",
     title: "Exclusive",
     active: true,
     order: 2,
+    layoutOrder: 3,
   },
-
   {
     key: "newarrival",
     title: "New Arrival",
     active: true,
     order: 3,
+    layoutOrder: 5,
   },
-
   {
     key: "fashionstyle",
     title: "Fashion & Style",
     active: true,
     order: 4,
+    layoutOrder: 7,
+  },
+];
+
+const DEFAULT_SHOWCASES: HomepageCategoryShowcaseItem[] = [
+  {
+    key: "showcaseOne",
+    title: "Explore Categories",
+    active: true,
+    order: 1,
+    layoutOrder: 2,
+  },
+  {
+    key: "showcaseTwo",
+    title: "Featured Categories",
+    active: true,
+    order: 2,
+    layoutOrder: 4,
+  },
+  {
+    key: "showcaseThree",
+    title: "More Categories",
+    active: true,
+    order: 3,
+    layoutOrder: 6,
   },
 ];
 
@@ -102,57 +156,67 @@ const TENANT_STORAGE_KEYS = [
   "tenant_id",
 ] as const;
 
-const isValidTenantId = (
-  value: string,
-) =>
-  /^[a-f\d]{24}$/i.test(
-    value,
-  );
+const isValidTenantId = (value: string) =>
+  /^[a-f\d]{24}$/i.test(value);
 
-const getActiveTenantId =
-  () => {
-    if (
-      typeof window ===
-      "undefined"
-    ) {
-      return "";
-    }
-
-    for (
-      const key of
-      TENANT_STORAGE_KEYS
-    ) {
-      const tenantId =
-        window.localStorage
-          .getItem(key)
-          ?.trim() || "";
-
-      if (
-        isValidTenantId(
-          tenantId,
-        )
-      ) {
-        return tenantId;
-      }
-    }
-
+const getActiveTenantId = () => {
+  if (typeof window === "undefined") {
     return "";
+  }
+
+  for (const key of TENANT_STORAGE_KEYS) {
+    const tenantId =
+      window.localStorage.getItem(key)?.trim() || "";
+
+    if (isValidTenantId(tenantId)) {
+      return tenantId;
+    }
+  }
+
+  return "";
+};
+
+const getPublicHeaders = () => {
+  const tenantId = getActiveTenantId();
+
+  return {
+    Accept: "application/json",
+    ...(tenantId
+      ? {
+          "X-Tenant-Id": tenantId,
+        }
+      : {}),
   };
+};
 
-/* =========================================================
-   SUPPORTED SECTION KEYS
-========================================================= */
-
-const normalizeSectionKey = (
-  value: string,
-) =>
+const normalizeSectionKey = (value: string) =>
   String(value || "")
     .trim()
     .toLowerCase()
-    .replace(
-      /[^a-z0-9]+/g,
-      "",
-    );
+    .replace(/[^a-z0-9]+/g, "");
+
+const legacyShowcasesFromResponse = (
+  config: HomepageCategoryShowcaseResponse["showcaseConfig"],
+): HomepageCategoryShowcaseItem[] => [
+  {
+    ...DEFAULT_SHOWCASES[0],
+    title:
+      config?.showcaseOne?.title?.trim() ||
+      DEFAULT_SHOWCASES[0].title,
+  },
+  {
+    ...DEFAULT_SHOWCASES[1],
+    title:
+      config?.showcaseTwo?.title?.trim() ||
+      DEFAULT_SHOWCASES[1].title,
+  },
+  {
+    ...DEFAULT_SHOWCASES[2],
+    title:
+      config?.showcaseThree?.title?.trim() ||
+      DEFAULT_SHOWCASES[2].title,
+  },
+];
 
 /* =========================================================
    COMPONENT
@@ -162,390 +226,325 @@ export default function HomepageProductSections({
   initialProducts,
   initialError = null,
 }: HomepageProductSectionsProps) {
-  const [
-    sections,
-    setSections,
-  ] =
-    useState<HomepageProductSection[]>(
-      DEFAULT_SECTIONS,
-    );
+  const [sections, setSections] =
+    useState<HomepageProductSection[]>(DEFAULT_SECTIONS);
 
-  const [
-    sectionsActive,
-    setSectionsActive,
-  ] =
+  const [sectionsActive, setSectionsActive] =
     useState(true);
 
-  /* =======================================================
-     LOAD SECTION ORDER
-  ======================================================= */
-
-  const loadSections =
-    useCallback(
-      async () => {
-        try {
-          const tenantId =
-            getActiveTenantId();
-
-          const response =
-            await fetch(
-              `${API_BASE_URL}/api/homepage-product-section-settings`,
-              {
-                method:
-                  "GET",
-
-                headers: {
-                  Accept:
-                    "application/json",
-
-                  ...(tenantId
-                    ? {
-                        "X-Tenant-Id":
-                          tenantId,
-                      }
-                    : {}),
-                },
-
-                cache:
-                  "no-store",
-              },
-            );
-
-          const payload =
-            (await response
-              .json()
-              .catch(
-                () =>
-                  null,
-              )) as
-              | HomepageProductSectionResponse
-              | null;
-
-          if (
-            !response.ok ||
-            !payload?.success
-          ) {
-            return;
-          }
-
-          setSectionsActive(
-            payload.data
-              ?.isActive !==
-              false,
-          );
-
-          const apiSections =
-            Array.isArray(
-              payload.data
-                ?.sections,
-            )
-              ? payload.data
-                  .sections
-              : [];
-
-          if (
-            apiSections.length ===
-            0
-          ) {
-            setSections(
-              DEFAULT_SECTIONS,
-            );
-
-            return;
-          }
-
-          setSections(
-            [...apiSections]
-              .map(
-                (
-                  section,
-                  index,
-                ) => ({
-                  ...section,
-
-                  key:
-                    normalizeSectionKey(
-                      section.key,
-                    ),
-
-                  order:
-                    Math.max(
-                      1,
-                      Number(
-                        section.order,
-                      ) ||
-                        index +
-                          1,
-                    ),
-
-                  active:
-                    section.active !==
-                    false,
-                }),
-              )
-              .sort(
-                (
-                  firstSection,
-                  secondSection,
-                ) =>
-                  firstSection.order -
-                  secondSection.order,
-              ),
-          );
-        } catch (
-          error
-        ) {
-          console.error(
-            "Failed to load homepage product section order:",
-            error,
-          );
-        }
-      },
-      [],
+  const [categoryShowcases, setCategoryShowcases] =
+    useState<HomepageCategoryShowcaseItem[]>(
+      DEFAULT_SHOWCASES,
     );
 
   /* =======================================================
-     INITIAL LOAD
+     LOAD TENANT HOMEPAGE CONTENT LAYOUT
   ======================================================= */
 
-  useEffect(() => {
-    void loadSections();
-  }, [
-    loadSections,
-  ]);
+  const loadHomepageLayout = useCallback(async () => {
+    try {
+      const headers = getPublicHeaders();
 
-  /* =======================================================
-     REFRESH AFTER ADMIN SAVE
-  ======================================================= */
+      const [productResponse, categoryResponse] =
+        await Promise.all([
+          fetch(
+            `${API_BASE_URL}/api/homepage-product-section-settings`,
+            {
+              method: "GET",
+              headers,
+              cache: "no-store",
+            },
+          ),
+          fetch(
+            `${API_BASE_URL}/api/homepage-category-showcases`,
+            {
+              method: "GET",
+              headers,
+              cache: "no-store",
+            },
+          ),
+        ]);
+
+      const productPayload =
+        (await productResponse
+          .json()
+          .catch(() => null)) as
+          | HomepageProductSectionResponse
+          | null;
+
+      const categoryPayload =
+        (await categoryResponse
+          .json()
+          .catch(() => null)) as
+          | HomepageCategoryShowcaseResponse
+          | null;
+
+      if (productResponse.ok && productPayload?.success) {
+        setSectionsActive(
+          productPayload.data?.isActive !== false,
+        );
+
+        const apiSections = Array.isArray(
+          productPayload.data?.sections,
+        )
+          ? productPayload.data?.sections ?? []
+          : [];
+
+        setSections(
+          apiSections.length > 0
+            ? apiSections.map((section, index) => ({
+                ...section,
+                key: normalizeSectionKey(section.key),
+                active: section.active !== false,
+                order: Math.max(
+                  1,
+                  Number(section.order) || index + 1,
+                ),
+                layoutOrder: Math.max(
+                  1,
+                  Number(section.layoutOrder) ||
+                    index * 2 + 1,
+                ),
+              }))
+            : DEFAULT_SECTIONS,
+        );
+      }
+
+      if (
+        categoryResponse.ok &&
+        categoryPayload?.success &&
+        categoryPayload.showcaseConfig
+      ) {
+        const dynamicShowcases = Array.isArray(
+          categoryPayload.showcaseConfig.showcases,
+        )
+          ? categoryPayload.showcaseConfig.showcases
+          : [];
+
+        setCategoryShowcases(
+          (dynamicShowcases.length > 0
+            ? dynamicShowcases
+            : legacyShowcasesFromResponse(
+                categoryPayload.showcaseConfig,
+              )
+          ).map((showcase, index) => ({
+            ...showcase,
+            key:
+              showcase.key?.trim() ||
+              `showcase-${index + 1}`,
+            title:
+              showcase.title?.trim() ||
+              `Category Showcase ${index + 1}`,
+            active: showcase.active !== false,
+            order: Math.max(
+              1,
+              Number(showcase.order) || index + 1,
+            ),
+            layoutOrder: Math.max(
+              1,
+              Number(showcase.layoutOrder) ||
+                index * 2 + 2,
+            ),
+          })),
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Failed to load homepage content layout:",
+        error,
+      );
+    }
+  }, []);
 
   useEffect(() => {
-    const handleUpdated =
-      () => {
-        void loadSections();
-      };
+    void loadHomepageLayout();
+  }, [loadHomepageLayout]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void loadHomepageLayout();
+    };
 
     window.addEventListener(
       "homepage:product-sections-updated",
-      handleUpdated,
+      refresh,
+    );
+    window.addEventListener(
+      "homepage:category-showcases-updated",
+      refresh,
     );
 
     return () => {
       window.removeEventListener(
         "homepage:product-sections-updated",
-        handleUpdated,
+        refresh,
+      );
+      window.removeEventListener(
+        "homepage:category-showcases-updated",
+        refresh,
       );
     };
+  }, [loadHomepageLayout]);
+
+  /* =======================================================
+     PRODUCTS BY PRODUCT SECTION
+  ======================================================= */
+
+  const productsBySection = useMemo(() => {
+    const groupedProducts: Record<string, Product[]> = {};
+
+    for (const section of sections) {
+      const key = normalizeSectionKey(section.key);
+
+      if (key && !groupedProducts[key]) {
+        groupedProducts[key] = [];
+      }
+    }
+
+    for (const product of initialProducts) {
+      const key = normalizeSectionKey(
+        product.homepageSection || "",
+      );
+
+      if (key && groupedProducts[key]) {
+        groupedProducts[key].push(product);
+      }
+    }
+
+    return groupedProducts;
+  }, [initialProducts, sections]);
+
+  /* =======================================================
+     GLOBAL HOMEPAGE CONTENT ORDER
+  ======================================================= */
+
+  const layoutItems = useMemo<HomepageLayoutItem[]>(() => {
+    const productItems: HomepageLayoutItem[] =
+      sectionsActive
+        ? sections
+            .filter((section) => section.active !== false)
+            .map((section, index) => ({
+              type: "product" as const,
+              key: section.key,
+              layoutOrder: Math.max(
+                1,
+                Number(section.layoutOrder) ||
+                  index * 2 + 1,
+              ),
+              section,
+            }))
+        : [];
+
+    const categoryItems: HomepageLayoutItem[] =
+      categoryShowcases
+        .filter((showcase) => showcase.active !== false)
+        .map((showcase, index) => ({
+          type: "category" as const,
+          key: showcase.key,
+          layoutOrder: Math.max(
+            1,
+            Number(showcase.layoutOrder) ||
+              index * 2 + 2,
+          ),
+          showcase,
+        }));
+
+    return [...productItems, ...categoryItems].sort(
+      (a, b) => a.layoutOrder - b.layoutOrder,
+    );
   }, [
-    loadSections,
+    categoryShowcases,
+    sections,
+    sectionsActive,
   ]);
 
   /* =======================================================
-     SUPPORTED + ACTIVE SECTIONS
+     PRODUCT SECTION RENDERER
   ======================================================= */
 
-  const visibleSections =
-    useMemo(
-      () =>
-        sections.filter(
-          (section) =>
-            section.active !==
-              false &&
-            [
-              "topselling",
-              "exclusive",
-              "newarrival",
-              "fashionstyle",
-            ].includes(
-              normalizeSectionKey(
-                section.key,
-              ),
-            ),
-        ),
-      [
-        sections,
-      ],
-    );
+  const renderProductSection = (
+    section: HomepageProductSection,
+  ) => {
+    const normalizedKey =
+      normalizeSectionKey(section.key);
 
-  /* =======================================================
-     PRODUCTS BY HOMEPAGE SECTION
-
-     Each homepage product section receives only products
-     assigned to that section during product create/edit.
-  ======================================================= */
-
-  const productsBySection =
-    useMemo(() => {
-      const groupedProducts:
-        Record<string, Product[]> = {
-          topselling: [],
-          exclusive: [],
-          newarrival: [],
-          fashionstyle: [],
-        };
-
-      for (const product of initialProducts) {
-        const normalizedProductSection =
-          normalizeSectionKey(
-            product.homepageSection || "",
-          );
-
-        if (
-          Object.prototype.hasOwnProperty.call(
-            groupedProducts,
-            normalizedProductSection,
-          )
-        ) {
-          groupedProducts[
-            normalizedProductSection
-          ].push(product);
-        }
-      }
-
-      return groupedProducts;
-    }, [initialProducts]);
-
-  /* =======================================================
-     RENDER PRODUCT SECTION
-  ======================================================= */
-
-  const renderProductSection =
-    (
-      section:
-        HomepageProductSection,
-    ) => {
-      const normalizedKey =
-        normalizeSectionKey(
-          section.key,
+    switch (normalizedKey) {
+      case "topselling":
+        return (
+          <TopSellingProducts
+            key={section.key}
+            initialProducts={
+              productsBySection.topselling || []
+            }
+            initialError={initialError}
+          />
         );
 
-      switch (
-        normalizedKey
-      ) {
-        case "topselling":
-          return (
-            <TopSellingProducts
-              key={
-                section.key
-              }
-              initialProducts={
-                productsBySection.topselling
-              }
-              initialError={
-                initialError
-              }
-            />
-          );
+      case "exclusive":
+        return (
+          <ExclusiveProducts
+            key={section.key}
+            initialProducts={
+              productsBySection.exclusive || []
+            }
+            initialError={initialError}
+          />
+        );
 
-        case "exclusive":
-          return (
-            <ExclusiveProducts
-              key={
-                section.key
-              }
-              initialProducts={
-                productsBySection.exclusive
-              }
-              initialError={
-                initialError
-              }
-            />
-          );
+      case "newarrival":
+        return (
+          <NewArrival
+            key={section.key}
+            initialProducts={
+              productsBySection.newarrival || []
+            }
+            initialError={initialError}
+          />
+        );
 
-        case "newarrival":
-          return (
-            <NewArrival
-              key={
-                section.key
-              }
-              initialProducts={
-                productsBySection.newarrival
-              }
-              initialError={
-                initialError
-              }
-            />
-          );
+      case "fashionstyle":
+        return (
+          <WomenFashion
+            key={section.key}
+            initialProducts={
+              productsBySection.fashionstyle || []
+            }
+            initialError={initialError}
+          />
+        );
 
-        case "fashionstyle":
-          return (
-            <WomenFashion
-              key={
-                section.key
-              }
-              initialProducts={
-                productsBySection.fashionstyle
-              }
-              initialError={
-                initialError
-              }
-            />
-          );
-
-        default:
-          return null;
-      }
-    };
-
-  /* =======================================================
-     DISABLED
-  ======================================================= */
-
-  if (
-    !sectionsActive
-  ) {
-    return null;
-  }
-
-  /* =======================================================
-     OUTPUT
-
-     Product slot 1
-     Showcase One
-     Product slot 2
-     Showcase Two
-     Product slot 3
-     Showcase Three
-     Product slot 4
-  ======================================================= */
+      default:
+        return (
+          <DynamicProductSection
+            key={section.key}
+            title={section.title}
+            products={
+              productsBySection[normalizedKey] || []
+            }
+            initialError={initialError}
+          />
+        );
+    }
+  };
 
   return (
     <>
-      {visibleSections[0] &&
-        renderProductSection(
-          visibleSections[0],
-        )}
+      {layoutItems.map((item) => {
+        if (item.type === "product") {
+          return renderProductSection(item.section);
+        }
 
-      <CategoryShowcaseOne />
-
-      {visibleSections[1] &&
-        renderProductSection(
-          visibleSections[1],
-        )}
-
-      <CategoryShowcaseTwo />
-
-      {visibleSections[2] &&
-        renderProductSection(
-          visibleSections[2],
-        )}
-
-      <CategoryShowcaseThree />
-
-      {visibleSections[3] &&
-        renderProductSection(
-          visibleSections[3],
-        )}
-
-      {visibleSections
-        .slice(4)
-        .map(
-          (
-            section,
-          ) =>
-            renderProductSection(
-              section,
-            ),
-        )}
+        return (
+          <CategoryShowcase
+            key={item.showcase.key}
+            showcaseKey={item.showcase.key}
+            title={item.showcase.title}
+            showAllText="Show All"
+            showAllLink="/categories"
+            emptyMessage={`Select and save categories for ${item.showcase.title} from the Admin Dashboard.`}
+          />
+        );
+      })}
     </>
   );
 }

@@ -31,6 +31,17 @@ const homepageProductSectionItemSchema =
         default: 1,
         min: 1,
       },
+
+      /*
+       * Global homepage position across product sections and
+       * category showcases. `order` remains the product-only
+       * order for backward compatibility.
+       */
+      layoutOrder: {
+        type: Number,
+        default: 1,
+        min: 1,
+      },
     },
     {
       _id: true,
@@ -61,27 +72,28 @@ const homepageProductSectionSettingSchema =
             title: "Top Selling",
             active: true,
             order: 1,
+            layoutOrder: 1,
           },
-
           {
             key: "exclusive",
             title: "Exclusive",
             active: true,
             order: 2,
+            layoutOrder: 3,
           },
-
           {
             key: "newArrival",
             title: "New Arrival",
             active: true,
             order: 3,
+            layoutOrder: 5,
           },
-
           {
             key: "fashionStyle",
             title: "Fashion & Style",
             active: true,
             order: 4,
+            layoutOrder: 7,
           },
         ],
       },
@@ -115,44 +127,33 @@ homepageProductSectionSettingSchema.pre(
 
     this.sections = this.sections
       .map((section, index) => ({
-        key:
-          String(
-            section.key ||
-              `section-${index + 1}`,
-          )
-            .trim()
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/^-+|-+$/g, ""),
+        key: String(
+          section.key || `section-${index + 1}`,
+        )
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, ""),
 
-        title:
-          String(
-            section.title || "",
-          ).trim(),
+        title: String(section.title || "").trim(),
 
-        active:
-          section.active !== false,
+        active: section.active !== false,
 
-        order:
-          Math.max(
-            1,
-            Number(section.order) ||
-              index + 1,
-          ),
+        order: Math.max(
+          1,
+          Number(section.order) || index + 1,
+        ),
+
+        layoutOrder: Math.max(
+          1,
+          Number(section.layoutOrder) || index * 2 + 1,
+        ),
       }))
-      .filter(
-        (section) =>
-          section.key &&
-          section.title,
-      );
+      .filter((section) => section.key && section.title);
 
     next();
   },
 );
-
-/* =========================================================
-   EXPORT
-========================================================= */
 
 module.exports =
   mongoose.models.HomepageProductSectionSetting ||

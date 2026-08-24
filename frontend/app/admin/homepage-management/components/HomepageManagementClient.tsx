@@ -7,10 +7,10 @@ import { useTenant } from "@/src/context/TenantContext";
 import CategoryShowcaseManagement from "./CategoryShowcaseManagement";
 import HeroSectionManagement from "./HeroSectionManagement";
 import PopularCategoryManagement from "./PopularCategoryManagement";
+import HomepageSectionBuilder from "./HomepageSectionBuilder";
 
 import type {
   CategoryShowcase,
-  CategoryShowcaseKey,
   CategoryShowcasePosition,
   CategoryShowcaseSlotKey,
   CategoryShowcaseSlots,
@@ -108,6 +108,7 @@ type HomepageProductSectionItem = {
   title: string;
   active: boolean;
   order: number;
+  layoutOrder: number;
 };
 
 type HomepageProductSectionSettingsApiResponse = {
@@ -272,32 +273,38 @@ const readJsonResponse = async <T,>(response: Response): Promise<T> => {
    CATEGORY SHOWCASE DEFINITIONS
 ========================================================= */
 
-const SHOWCASE_DEFINITIONS = [
+const DEFAULT_SHOWCASE_DEFINITIONS = [
   {
-    id: 1 as const,
-    key: "showcaseOne" as const,
+    id: 1,
+    key: "showcaseOne",
     title: "Homepage Category Showcase One",
+    sectionTitle: "Explore Categories",
     description:
-      "Manage the three categories displayed in the first homepage showcase.",
-    order: 1 as const,
+      "Manage the three categories displayed in this homepage showcase.",
+    order: 1,
+    layoutOrder: 2,
   },
   {
-    id: 2 as const,
-    key: "showcaseTwo" as const,
+    id: 2,
+    key: "showcaseTwo",
     title: "Homepage Category Showcase Two",
+    sectionTitle: "Featured Categories",
     description:
-      "Manage the three categories displayed in the second homepage showcase.",
-    order: 2 as const,
+      "Manage the three categories displayed in this homepage showcase.",
+    order: 2,
+    layoutOrder: 4,
   },
   {
-    id: 3 as const,
-    key: "showcaseThree" as const,
+    id: 3,
+    key: "showcaseThree",
     title: "Homepage Category Showcase Three",
+    sectionTitle: "More Categories",
     description:
-      "Manage the three categories displayed in the third homepage showcase.",
-    order: 3 as const,
+      "Manage the three categories displayed in this homepage showcase.",
+    order: 3,
+    layoutOrder: 6,
   },
-];
+] as const;
 
 const POSITION_DEFINITIONS = [
   {
@@ -318,52 +325,29 @@ const POSITION_DEFINITIONS = [
    CATEGORY SHOWCASE ADAPTER HELPERS
 ========================================================= */
 
-const DEFAULT_SHOWCASE_SECTION_TITLES: Record<
-  CategoryShowcaseKey,
-  string
-> = {
-  showcaseOne: "Explore Categories",
-  showcaseTwo: "Featured Categories",
-  showcaseThree: "More Categories",
-};
+const createEmptyPositions = (
+  showcaseKey: string,
+): CategoryShowcasePosition[] =>
+  POSITION_DEFINITIONS.map((positionDefinition) => ({
+    id: `${showcaseKey}-${positionDefinition.slotKey}`,
+    slotKey: positionDefinition.slotKey,
+    position: positionDefinition.position,
+    categoryId: "",
+    categoryName: "No category selected",
+    categorySlug: "",
+    thumbnail: "",
+    active: false,
+  }));
 
 const createEmptyCategoryShowcases = (): CategoryShowcase[] =>
-  SHOWCASE_DEFINITIONS.map((showcaseDefinition) => ({
-    ...showcaseDefinition,
-
-    sectionTitle:
-      DEFAULT_SHOWCASE_SECTION_TITLES[
-        showcaseDefinition.key
-      ],
-
+  DEFAULT_SHOWCASE_DEFINITIONS.map((definition) => ({
+    ...definition,
     active: true,
-
-    positions: POSITION_DEFINITIONS.map(
-      (positionDefinition) => ({
-        id: `${showcaseDefinition.key}-${positionDefinition.slotKey}`,
-
-        slotKey:
-          positionDefinition.slotKey,
-
-        position:
-          positionDefinition.position,
-
-        categoryId: "",
-
-        categoryName:
-          "No category selected",
-
-        categorySlug: "",
-
-        thumbnail: "",
-
-        active: false,
-      }),
-    ),
+    positions: createEmptyPositions(definition.key),
   }));
 
 const mapSlotToPosition = (
-  showcaseKey: CategoryShowcaseKey,
+  showcaseKey: string,
   slotKey: CategoryShowcaseSlotKey,
   positionNumber: 1 | 2 | 3,
   slots: CategoryShowcaseSlots,
@@ -382,41 +366,89 @@ const mapSlotToPosition = (
   };
 };
 
+const mapShowcaseToAdminData = (
+  showcase: CategoryShowcaseSlots & {
+    _id?: string;
+    key?: string;
+    active?: boolean;
+    order?: number;
+    layoutOrder?: number;
+  },
+  index: number,
+): CategoryShowcase => {
+  const fallback = DEFAULT_SHOWCASE_DEFINITIONS[index];
+  const key =
+    showcase.key?.trim() ||
+    fallback?.key ||
+    `showcase-${index + 1}`;
+  const sectionTitle =
+    showcase.title?.trim() ||
+    fallback?.sectionTitle ||
+    `Category Showcase ${index + 1}`;
+
+  return {
+    id: showcase._id || key,
+    key,
+    title:
+      fallback?.title ||
+      `Homepage Category Showcase ${index + 1}`,
+    sectionTitle,
+    description:
+      fallback?.description ||
+      "Manage the three categories displayed in this homepage showcase.",
+    order: Math.max(1, Number(showcase.order) || index + 1),
+    layoutOrder: Math.max(
+      1,
+      Number(showcase.layoutOrder) || index * 2 + 2,
+    ),
+    active: showcase.active !== false,
+    positions: POSITION_DEFINITIONS.map((positionDefinition) =>
+      mapSlotToPosition(
+        key,
+        positionDefinition.slotKey,
+        positionDefinition.position,
+        showcase,
+      ),
+    ),
+  };
+};
+
 const convertShowcaseConfigToAdminData = (
-  showcaseConfig:
-    HomepageCategoryShowcaseConfig,
-): CategoryShowcase[] =>
-  SHOWCASE_DEFINITIONS.map(
-    (showcaseDefinition) => {
-      const slots =
-        showcaseConfig[
-          showcaseDefinition.key
-        ];
+  showcaseConfig: HomepageCategoryShowcaseConfig,
+): CategoryShowcase[] => {
+  const dynamicShowcases = Array.isArray(showcaseConfig.showcases)
+    ? showcaseConfig.showcases
+    : [];
 
-      return {
-        ...showcaseDefinition,
+  if (dynamicShowcases.length > 0) {
+    return dynamicShowcases
+      .map((showcase, index) =>
+        mapShowcaseToAdminData(showcase, index),
+      )
+      .sort((a, b) => a.order - b.order);
+  }
 
-        sectionTitle:
-          slots.title?.trim() ||
-          DEFAULT_SHOWCASE_SECTION_TITLES[
-            showcaseDefinition.key
-          ],
-
-        active: true,
-
-        positions:
-          POSITION_DEFINITIONS.map(
-            (positionDefinition) =>
-              mapSlotToPosition(
-                showcaseDefinition.key,
-                positionDefinition.slotKey,
-                positionDefinition.position,
-                slots,
-              ),
-          ),
+  return DEFAULT_SHOWCASE_DEFINITIONS.map((definition, index) => {
+    const legacySlots =
+      showcaseConfig[definition.key] || {
+        title: definition.sectionTitle,
+        categoryOne: null,
+        categoryTwo: null,
+        categoryThree: null,
       };
-    },
-  );
+
+    return mapShowcaseToAdminData(
+      {
+        ...legacySlots,
+        key: definition.key,
+        active: true,
+        order: definition.order,
+        layoutOrder: definition.layoutOrder,
+      },
+      index,
+    );
+  });
+};
 
 const getCategoryIdForSlot = (
   showcase: CategoryShowcase | undefined,
@@ -434,61 +466,97 @@ const getCategoryIdForSlot = (
 };
 
 const convertAdminDataToPayload = (
-  categoryShowcases:
-    CategoryShowcase[],
-): UpdateHomepageCategoryShowcasesPayload => {
-  const getShowcase = (
-    showcaseKey:
-      CategoryShowcaseKey,
-  ) =>
-    categoryShowcases.find(
-      (showcase) =>
-        showcase.key === showcaseKey,
-    );
-
-  const buildSlots = (
-    showcaseKey:
-      CategoryShowcaseKey,
-  ) => {
-    const showcase =
-      getShowcase(showcaseKey);
-
-    return {
+  categoryShowcases: CategoryShowcase[],
+): UpdateHomepageCategoryShowcasesPayload => ({
+  showcases: categoryShowcases
+    .map((showcase, index) => ({
+      key: showcase.key.trim() || `showcase-${index + 1}`,
       title:
-        showcase?.sectionTitle.trim() ||
-        DEFAULT_SHOWCASE_SECTION_TITLES[
-          showcaseKey
-        ],
+        showcase.sectionTitle.trim() ||
+        `Category Showcase ${index + 1}`,
+      active: showcase.active !== false,
+      order: index + 1,
+      layoutOrder: Math.max(
+        1,
+        Number(showcase.layoutOrder) || index + 1,
+      ),
+      categoryOne: getCategoryIdForSlot(
+        showcase,
+        "categoryOne",
+      ),
+      categoryTwo: getCategoryIdForSlot(
+        showcase,
+        "categoryTwo",
+      ),
+      categoryThree: getCategoryIdForSlot(
+        showcase,
+        "categoryThree",
+      ),
+    }))
+    .sort((a, b) => a.order - b.order),
+});
 
-      categoryOne:
-        getCategoryIdForSlot(
-          showcase,
-          "categoryOne",
-        ),
+const getNextLayoutOrder = (
+  productSections: HomepageProductSectionItem[],
+  categoryShowcases: CategoryShowcase[],
+) =>
+  Math.max(
+    0,
+    ...productSections.map((section) =>
+      Number(section.layoutOrder) || 0,
+    ),
+    ...categoryShowcases.map((showcase) =>
+      Number(showcase.layoutOrder) || 0,
+    ),
+  ) + 1;
 
-      categoryTwo:
-        getCategoryIdForSlot(
-          showcase,
-          "categoryTwo",
-        ),
+const normalizeHomepageLayout = (
+  productSections: HomepageProductSectionItem[],
+  categoryShowcases: CategoryShowcase[],
+) => {
+  const nextProducts = productSections.map((section, index) => ({
+    ...section,
+    order: index + 1,
+  }));
 
-      categoryThree:
-        getCategoryIdForSlot(
-          showcase,
-          "categoryThree",
-        ),
-    };
-  };
+  const nextShowcases = categoryShowcases.map((showcase, index) => ({
+    ...showcase,
+    order: index + 1,
+  }));
+
+  const layout = [
+    ...nextProducts.map((section) => ({
+      type: "product" as const,
+      key: section.key,
+      layoutOrder: section.layoutOrder,
+    })),
+    ...nextShowcases.map((showcase) => ({
+      type: "category" as const,
+      key: showcase.key,
+      layoutOrder: showcase.layoutOrder,
+    })),
+  ].sort((a, b) => a.layoutOrder - b.layoutOrder);
+
+  const orderMap = new Map(
+    layout.map((item, index) => [
+      `${item.type}:${item.key}`,
+      index + 1,
+    ]),
+  );
 
   return {
-    showcaseOne:
-      buildSlots("showcaseOne"),
-
-    showcaseTwo:
-      buildSlots("showcaseTwo"),
-
-    showcaseThree:
-      buildSlots("showcaseThree"),
+    productSections: nextProducts.map((section) => ({
+      ...section,
+      layoutOrder:
+        orderMap.get(`product:${section.key}`) ||
+        section.layoutOrder,
+    })),
+    categoryShowcases: nextShowcases.map((showcase) => ({
+      ...showcase,
+      layoutOrder:
+        orderMap.get(`category:${showcase.key}`) ||
+        showcase.layoutOrder,
+    })),
   };
 };
 
@@ -883,6 +951,10 @@ export default function HomepageManagementClient() {
               title: section.title?.trim() || `Section ${index + 1}`,
               active: section.active !== false,
               order: Math.max(1, Number(section.order) || index + 1),
+              layoutOrder: Math.max(
+                1,
+                Number(section.layoutOrder) || index * 2 + 1,
+              ),
             }))
             .sort((a, b) => a.order - b.order)
         : [];
@@ -1250,8 +1322,45 @@ export default function HomepageManagementClient() {
   };
 
   /* =======================================================
-     CATEGORY SHOWCASE
+     CATEGORY SHOWCASE SAVE
   ======================================================= */
+
+  const saveCategoryShowcases = async (
+    nextShowcases: CategoryShowcase[],
+  ) => {
+    const response = await fetch(
+      `${API_URL}/homepage-category-showcases`,
+      {
+        method: "PUT",
+        headers: getAdminHeaders(),
+        body: JSON.stringify(
+          convertAdminDataToPayload(nextShowcases),
+        ),
+      },
+    );
+
+    const data =
+      await readJsonResponse<HomepageCategoryShowcasesApiResponse>(
+        response,
+      );
+
+    if (!response.ok || !data.success || !data.showcaseConfig) {
+      throw new Error(
+        data.message ||
+          "Failed to update homepage category showcases.",
+      );
+    }
+
+    setCategoryShowcases(
+      convertShowcaseConfigToAdminData(data.showcaseConfig),
+    );
+
+    window.dispatchEvent(
+      new CustomEvent("homepage:category-showcases-updated"),
+    );
+
+    return data;
+  };
 
   const handleUpdateCategoryShowcase = async (
     updatedShowcase: CategoryShowcase,
@@ -1261,31 +1370,15 @@ export default function HomepageManagementClient() {
     }
 
     const nextShowcases = categoryShowcases.map((showcase) =>
-      showcase.id === updatedShowcase.id ? updatedShowcase : showcase,
+      showcase.key === updatedShowcase.key
+        ? updatedShowcase
+        : showcase,
     );
 
     try {
       setIsSavingCategoryShowcases(true);
       setCategoryShowcaseError("");
-
-      const response = await fetch(`${API_URL}/homepage-category-showcases`, {
-        method: "PUT",
-        headers: getAdminHeaders(),
-        body: JSON.stringify(convertAdminDataToPayload(nextShowcases)),
-      });
-
-      const data =
-        await readJsonResponse<HomepageCategoryShowcasesApiResponse>(response);
-
-      if (!response.ok || !data.success || !data.showcaseConfig) {
-        throw new Error(
-          data.message || "Failed to update homepage category showcases.",
-        );
-      }
-
-      setCategoryShowcases(
-        convertShowcaseConfigToAdminData(data.showcaseConfig),
-      );
+      await saveCategoryShowcases(nextShowcases);
     } catch (error) {
       console.error("Failed to update category showcases:", error);
 
@@ -1295,7 +1388,6 @@ export default function HomepageManagementClient() {
           : "Failed to update homepage category showcases.";
 
       setCategoryShowcaseError(message);
-
       throw error;
     } finally {
       setIsSavingCategoryShowcases(false);
@@ -1303,108 +1395,248 @@ export default function HomepageManagementClient() {
   };
 
   /* =======================================================
-     HOMEPAGE PRODUCT SECTIONS
+     HOMEPAGE SECTION BUILDER
   ======================================================= */
 
   const handleAddProductSection = () => {
     const nextOrder = productSections.length + 1;
+    const timestamp = Date.now();
 
     setProductSections((currentSections) => [
       ...currentSections,
       {
-        key: `section-${Date.now()}`,
-        title: `New Section ${nextOrder}`,
+        key: `section-${timestamp}`,
+        title: `New Product Section ${nextOrder}`,
         active: true,
         order: nextOrder,
+        layoutOrder: getNextLayoutOrder(
+          currentSections,
+          categoryShowcases,
+        ),
+      },
+    ]);
+  };
+
+  const handleAddCategoryShowcase = () => {
+    const nextOrder = categoryShowcases.length + 1;
+    const timestamp = Date.now();
+    const key = `showcase-${timestamp}`;
+
+    setCategoryShowcases((currentShowcases) => [
+      ...currentShowcases,
+      {
+        id: `draft-${timestamp}`,
+        key,
+        title: `Homepage Category Showcase ${nextOrder}`,
+        sectionTitle: `New Category Showcase ${nextOrder}`,
+        description:
+          "Manage the three categories displayed in this homepage showcase.",
+        order: nextOrder,
+        layoutOrder: getNextLayoutOrder(
+          productSections,
+          currentShowcases,
+        ),
+        active: true,
+        positions: createEmptyPositions(key),
       },
     ]);
   };
 
   const handleUpdateProductSection = (
-    index: number,
+    key: string,
     changes: Partial<HomepageProductSectionItem>,
   ) => {
     setProductSections((currentSections) =>
-      currentSections.map((section, sectionIndex) =>
-        sectionIndex === index ? { ...section, ...changes } : section,
+      currentSections.map((section) =>
+        section.key === key
+          ? { ...section, ...changes }
+          : section,
       ),
     );
   };
 
-  const handleMoveProductSection = (
-    index: number,
-    direction: "up" | "down",
+  const handleUpdateCategoryShowcaseMeta = (
+    key: string,
+    changes: Partial<CategoryShowcase>,
   ) => {
-    setProductSections((currentSections) => {
-      const targetIndex = direction === "up" ? index - 1 : index + 1;
-      if (targetIndex < 0 || targetIndex >= currentSections.length) {
-        return currentSections;
-      }
-
-      const next = [...currentSections];
-      const [moved] = next.splice(index, 1);
-      next.splice(targetIndex, 0, moved);
-
-      return next.map((section, sectionIndex) => ({
-        ...section,
-        order: sectionIndex + 1,
-      }));
-    });
-  };
-
-  const handleDeleteProductSection = (index: number) => {
-    setProductSections((currentSections) =>
-      currentSections
-        .filter((_, sectionIndex) => sectionIndex !== index)
-        .map((section, sectionIndex) => ({
-          ...section,
-          order: sectionIndex + 1,
-        })),
+    setCategoryShowcases((currentShowcases) =>
+      currentShowcases.map((showcase) =>
+        showcase.key === key
+          ? { ...showcase, ...changes }
+          : showcase,
+      ),
     );
   };
 
-  const handleSaveProductSections = async () => {
-    if (isSavingProductSections) return;
+  const handleMoveHomepageSection = (
+    type: "product" | "category",
+    key: string,
+    direction: "up" | "down",
+  ) => {
+    const normalized = normalizeHomepageLayout(
+      productSections,
+      categoryShowcases,
+    );
 
-    const sections = productSections.map((section, index) => ({
-      key: section.key.trim() || `section-${index + 1}`,
-      title: section.title.trim(),
-      active: section.active !== false,
-      order: index + 1,
-    }));
+    const layout = [
+      ...normalized.productSections.map((section) => ({
+        type: "product" as const,
+        key: section.key,
+        layoutOrder: section.layoutOrder,
+      })),
+      ...normalized.categoryShowcases.map((showcase) => ({
+        type: "category" as const,
+        key: showcase.key,
+        layoutOrder: showcase.layoutOrder,
+      })),
+    ].sort((a, b) => a.layoutOrder - b.layoutOrder);
 
-    const emptyTitleIndex = sections.findIndex((section) => !section.title);
-    if (emptyTitleIndex !== -1) {
-      setProductSectionError(`Section ${emptyTitleIndex + 1} title is required.`);
+    const currentIndex = layout.findIndex(
+      (item) => item.type === type && item.key === key,
+    );
+    const targetIndex =
+      direction === "up"
+        ? currentIndex - 1
+        : currentIndex + 1;
+
+    if (
+      currentIndex < 0 ||
+      targetIndex < 0 ||
+      targetIndex >= layout.length
+    ) {
+      return;
+    }
+
+    const nextLayout = [...layout];
+    const [moved] = nextLayout.splice(currentIndex, 1);
+    nextLayout.splice(targetIndex, 0, moved);
+
+    const orderMap = new Map(
+      nextLayout.map((item, index) => [
+        `${item.type}:${item.key}`,
+        index + 1,
+      ]),
+    );
+
+    setProductSections(
+      normalized.productSections.map((section) => ({
+        ...section,
+        layoutOrder:
+          orderMap.get(`product:${section.key}`) ||
+          section.layoutOrder,
+      })),
+    );
+
+    setCategoryShowcases(
+      normalized.categoryShowcases.map((showcase) => ({
+        ...showcase,
+        layoutOrder:
+          orderMap.get(`category:${showcase.key}`) ||
+          showcase.layoutOrder,
+      })),
+    );
+  };
+
+  const handleDeleteHomepageSection = (
+    type: "product" | "category",
+    key: string,
+  ) => {
+    const nextProducts =
+      type === "product"
+        ? productSections.filter((section) => section.key !== key)
+        : productSections;
+
+    const nextShowcases =
+      type === "category"
+        ? categoryShowcases.filter((showcase) => showcase.key !== key)
+        : categoryShowcases;
+
+    const normalized = normalizeHomepageLayout(
+      nextProducts,
+      nextShowcases,
+    );
+
+    setProductSections(normalized.productSections);
+    setCategoryShowcases(normalized.categoryShowcases);
+  };
+
+  const handleSaveHomepageSections = async () => {
+    if (isSavingProductSections || isSavingCategoryShowcases) {
+      return;
+    }
+
+    const normalized = normalizeHomepageLayout(
+      productSections,
+      categoryShowcases,
+    );
+
+    const invalidProductIndex =
+      normalized.productSections.findIndex(
+        (section) => !section.title.trim(),
+      );
+
+    if (invalidProductIndex !== -1) {
+      setProductSectionError(
+        `Product section ${invalidProductIndex + 1} title is required.`,
+      );
+      return;
+    }
+
+    const invalidShowcaseIndex =
+      normalized.categoryShowcases.findIndex(
+        (showcase) => !showcase.sectionTitle.trim(),
+      );
+
+    if (invalidShowcaseIndex !== -1) {
+      setProductSectionError(
+        `Category showcase ${invalidShowcaseIndex + 1} title is required.`,
+      );
       return;
     }
 
     try {
       setIsSavingProductSections(true);
+      setIsSavingCategoryShowcases(true);
       setProductSectionError("");
+      setCategoryShowcaseError("");
 
-      const response = await fetch(
+      const productResponse = await fetch(
         `${API_URL}/homepage-product-section-settings`,
         {
           method: "PUT",
           headers: getAdminHeaders(),
           body: JSON.stringify({
-            sections,
+            sections: normalized.productSections.map(
+              (section, index) => ({
+                key:
+                  section.key.trim() ||
+                  `section-${index + 1}`,
+                title: section.title.trim(),
+                active: section.active !== false,
+                order: index + 1,
+                layoutOrder: section.layoutOrder,
+              }),
+            ),
             isActive: productSectionsActive,
           }),
         },
       );
 
-      const data =
+      const productData =
         await readJsonResponse<HomepageProductSectionSettingsApiResponse>(
-          response,
+          productResponse,
         );
 
-      if (!response.ok || !data.success) {
+      if (!productResponse.ok || !productData.success) {
         throw new Error(
-          data.message || "Failed to save homepage product sections.",
+          productData.message ||
+            "Failed to save homepage product sections.",
         );
       }
+
+      await saveCategoryShowcases(
+        normalized.categoryShowcases,
+      );
 
       await loadProductSections();
 
@@ -1412,14 +1644,15 @@ export default function HomepageManagementClient() {
         new CustomEvent("homepage:product-sections-updated"),
       );
     } catch (error) {
-      console.error("Failed to save homepage product sections:", error);
+      console.error("Failed to save homepage section layout:", error);
       setProductSectionError(
         error instanceof Error
           ? error.message
-          : "Failed to save homepage product sections.",
+          : "Failed to save homepage section layout.",
       );
     } finally {
       setIsSavingProductSections(false);
+      setIsSavingCategoryShowcases(false);
     }
   };
 
@@ -1463,136 +1696,30 @@ export default function HomepageManagementClient() {
         onDeleteRightBottomBanner={handleDeleteRightBottomBanner}
       />
 
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-4 border-b border-slate-200 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">
-              Homepage Product Sections
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Rename, add, hide, remove or reorder product section titles for
-              the active tenant.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setProductSectionsActive((value) => !value)}
-              className={`rounded-lg border px-3 py-2 text-sm font-semibold ${
-                productSectionsActive
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  : "border-slate-200 bg-slate-100 text-slate-600"
-              }`}
-            >
-              {productSectionsActive ? "Sections Active" : "Sections Inactive"}
-            </button>
-
-            <button
-              type="button"
-              onClick={handleAddProductSection}
-              disabled={isLoadingProductSections || isSavingProductSections}
-              className="rounded-lg border border-[#FF6900] bg-white px-4 py-2 text-sm font-bold text-[#FF6900] disabled:opacity-50"
-            >
-              + Add Section
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void handleSaveProductSections()}
-              disabled={isLoadingProductSections || isSavingProductSections}
-              className="rounded-lg bg-[#0F1B33] px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
-            >
-              {isSavingProductSections ? "Saving..." : "Save Sections"}
-            </button>
-          </div>
-        </div>
-
-        {productSectionError && (
-          <div className="mx-5 mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
-            {productSectionError}
-          </div>
-        )}
-
-        {isLoadingProductSections ? (
-          <div className="px-5 py-8 text-sm font-semibold text-[#FF6900]">
-            Loading homepage product sections...
-          </div>
-        ) : productSections.length === 0 ? (
-          <div className="px-5 py-8 text-sm text-slate-500">
-            No product sections found. Click &quot;Add Section&quot; to create one.
-          </div>
-        ) : (
-          <div className="space-y-3 p-5">
-            {productSections.map((section, index) => (
-              <div
-                key={`${section.key}-${index}`}
-                className="grid items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[150px_minmax(0,1fr)_130px_210px]"
-              >
-                <div className="text-sm font-bold uppercase tracking-wide text-slate-500">
-                  Section Title - {index + 1}
-                </div>
-
-                <input
-                  type="text"
-                  value={section.title}
-                  onChange={(event) =>
-                    handleUpdateProductSection(index, {
-                      title: event.target.value,
-                    })
-                  }
-                  className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#FF6900]"
-                  placeholder="Enter section title"
-                />
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleUpdateProductSection(index, {
-                      active: !section.active,
-                    })
-                  }
-                  className={`h-11 w-full rounded-lg border text-sm font-bold ${
-                    section.active
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : "border-slate-300 bg-white text-slate-500"
-                  }`}
-                >
-                  {section.active ? "Active" : "Inactive"}
-                </button>
-
-                <div className="flex h-11 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleMoveProductSection(index, "up")}
-                    disabled={index === 0}
-                    className="flex-1 rounded-lg border border-slate-300 bg-white font-bold disabled:opacity-40"
-                  >
-                    ↑
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleMoveProductSection(index, "down")}
-                    disabled={index === productSections.length - 1}
-                    className="flex-1 rounded-lg border border-slate-300 bg-white font-bold disabled:opacity-40"
-                  >
-                    ↓
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteProductSection(index)}
-                    className="flex-[1.4] rounded-lg border border-red-200 bg-red-50 px-3 text-sm font-bold text-red-600"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      <HomepageSectionBuilder
+        productSections={productSections}
+        categoryShowcases={categoryShowcases}
+        productSectionsActive={productSectionsActive}
+        isLoading={
+          isLoadingProductSections || isLoadingCategoryShowcases
+        }
+        isSaving={
+          isSavingProductSections || isSavingCategoryShowcases
+        }
+        errorMessage={
+          productSectionError || categoryShowcaseError
+        }
+        onToggleProductSectionsActive={() =>
+          setProductSectionsActive((value) => !value)
+        }
+        onAddProductSection={handleAddProductSection}
+        onAddCategoryShowcase={handleAddCategoryShowcase}
+        onUpdateProductSection={handleUpdateProductSection}
+        onUpdateCategoryShowcase={handleUpdateCategoryShowcaseMeta}
+        onMoveSection={handleMoveHomepageSection}
+        onDeleteSection={handleDeleteHomepageSection}
+        onSave={handleSaveHomepageSections}
+      />
 
       {(isLoadingPopularCategories || popularCategoryError) && (
         <div

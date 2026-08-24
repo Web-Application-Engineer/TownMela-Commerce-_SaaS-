@@ -287,7 +287,7 @@ export default function CategoryShowcaseManagement({
         </div>
 
         <span className="w-fit rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-bold text-[#FF6900]">
-          3 Showcases
+          {categoryShowcases.length} {categoryShowcases.length === 1 ? "Showcase" : "Showcases"}
         </span>
       </div>
 

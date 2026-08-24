@@ -1,3 +1,5 @@
+"use strict";
+
 const mongoose = require("mongoose");
 
 const HomepageCategoryShowcase = require(
@@ -21,14 +23,12 @@ const resolveTenantId = (req) =>
   ).trim();
 
 const ensureTenantId = (req, res) => {
-  const tenantId =
-    resolveTenantId(req);
+  const tenantId = resolveTenantId(req);
 
   if (!tenantId) {
     res.status(403).json({
       success: false,
-      message:
-        "Tenant context is required",
+      message: "Tenant context is required",
     });
 
     return "";
@@ -49,16 +49,43 @@ const CATEGORY_SELECT_FIELDS =
 
 const MAX_SHOWCASE_TITLE_LENGTH = 120;
 
-const DEFAULT_SHOWCASE_TITLES = {
-  showcaseOne: "Explore Categories",
-  showcaseTwo: "Featured Categories",
-  showcaseThree: "More Categories",
-};
-
 const CATEGORY_SLOT_KEYS = [
   "categoryOne",
   "categoryTwo",
   "categoryThree",
+];
+
+const DEFAULT_SHOWCASES = [
+  {
+    key: "showcaseOne",
+    title: "Explore Categories",
+    active: true,
+    order: 1,
+    layoutOrder: 2,
+    categoryOne: null,
+    categoryTwo: null,
+    categoryThree: null,
+  },
+  {
+    key: "showcaseTwo",
+    title: "Featured Categories",
+    active: true,
+    order: 2,
+    layoutOrder: 4,
+    categoryOne: null,
+    categoryTwo: null,
+    categoryThree: null,
+  },
+  {
+    key: "showcaseThree",
+    title: "More Categories",
+    active: true,
+    order: 3,
+    layoutOrder: 6,
+    categoryOne: null,
+    categoryTwo: null,
+    categoryThree: null,
+  },
 ];
 
 /* =========================================================
@@ -68,142 +95,103 @@ const CATEGORY_SLOT_KEYS = [
 class ShowcaseValidationError extends Error {
   constructor(message) {
     super(message);
-
-    this.name =
-      "ShowcaseValidationError";
-
+    this.name = "ShowcaseValidationError";
     this.statusCode = 400;
   }
 }
 
 /* =========================================================
-   HELPER: POPULATE CATEGORY SLOTS
+   HELPERS
 ========================================================= */
 
-const populateCategorySlots = (
-  query
-) => {
-  return query.populate([
+const populateCategorySlots = (query) =>
+  query.populate([
     {
-      path:
-        "showcaseOne.categoryOne",
-      select:
-        CATEGORY_SELECT_FIELDS,
+      path: "showcases.categoryOne",
+      select: CATEGORY_SELECT_FIELDS,
     },
     {
-      path:
-        "showcaseOne.categoryTwo",
-      select:
-        CATEGORY_SELECT_FIELDS,
+      path: "showcases.categoryTwo",
+      select: CATEGORY_SELECT_FIELDS,
     },
     {
-      path:
-        "showcaseOne.categoryThree",
-      select:
-        CATEGORY_SELECT_FIELDS,
-    },
-
-    {
-      path:
-        "showcaseTwo.categoryOne",
-      select:
-        CATEGORY_SELECT_FIELDS,
+      path: "showcases.categoryThree",
+      select: CATEGORY_SELECT_FIELDS,
     },
     {
-      path:
-        "showcaseTwo.categoryTwo",
-      select:
-        CATEGORY_SELECT_FIELDS,
+      path: "showcaseOne.categoryOne",
+      select: CATEGORY_SELECT_FIELDS,
     },
     {
-      path:
-        "showcaseTwo.categoryThree",
-      select:
-        CATEGORY_SELECT_FIELDS,
-    },
-
-    {
-      path:
-        "showcaseThree.categoryOne",
-      select:
-        CATEGORY_SELECT_FIELDS,
+      path: "showcaseOne.categoryTwo",
+      select: CATEGORY_SELECT_FIELDS,
     },
     {
-      path:
-        "showcaseThree.categoryTwo",
-      select:
-        CATEGORY_SELECT_FIELDS,
+      path: "showcaseOne.categoryThree",
+      select: CATEGORY_SELECT_FIELDS,
     },
     {
-      path:
-        "showcaseThree.categoryThree",
-      select:
-        CATEGORY_SELECT_FIELDS,
+      path: "showcaseTwo.categoryOne",
+      select: CATEGORY_SELECT_FIELDS,
+    },
+    {
+      path: "showcaseTwo.categoryTwo",
+      select: CATEGORY_SELECT_FIELDS,
+    },
+    {
+      path: "showcaseTwo.categoryThree",
+      select: CATEGORY_SELECT_FIELDS,
+    },
+    {
+      path: "showcaseThree.categoryOne",
+      select: CATEGORY_SELECT_FIELDS,
+    },
+    {
+      path: "showcaseThree.categoryTwo",
+      select: CATEGORY_SELECT_FIELDS,
+    },
+    {
+      path: "showcaseThree.categoryThree",
+      select: CATEGORY_SELECT_FIELDS,
     },
   ]);
+
+const createSectionKey = (value, fallback) => {
+  const normalized = String(value || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return normalized || fallback;
 };
 
-/* =========================================================
-   HELPER: NORMALIZE TITLE
-========================================================= */
-
-const normalizeShowcaseTitle = (
-  title,
-  showcaseName
-) => {
-  const defaultTitle =
-    DEFAULT_SHOWCASE_TITLES[
-      showcaseName
-    ];
-
-  if (
-    title === null ||
-    title === undefined
-  ) {
-    return defaultTitle;
+const normalizeShowcaseTitle = (title, fallbackTitle) => {
+  if (title === null || title === undefined) {
+    return fallbackTitle;
   }
 
-  if (
-    typeof title !== "string"
-  ) {
+  if (typeof title !== "string") {
     throw new ShowcaseValidationError(
-      `${showcaseName}.title must be a string.`
+      "Showcase title must be a string."
     );
   }
 
-  const cleanTitle =
-    title.trim();
+  const cleanTitle = title.trim();
 
   if (!cleanTitle) {
-    return defaultTitle;
+    return fallbackTitle;
   }
 
-  if (
-    cleanTitle.length >
-    MAX_SHOWCASE_TITLE_LENGTH
-  ) {
+  if (cleanTitle.length > MAX_SHOWCASE_TITLE_LENGTH) {
     throw new ShowcaseValidationError(
-      `${showcaseName}.title cannot exceed ${MAX_SHOWCASE_TITLE_LENGTH} characters.`
+      `Showcase title cannot exceed ${MAX_SHOWCASE_TITLE_LENGTH} characters.`
     );
   }
 
   return cleanTitle;
 };
 
-/* =========================================================
-   HELPER: NORMALIZE CATEGORY ID
-
-   Supported values:
-   - Valid MongoDB ObjectId
-   - null
-   - undefined
-   - Empty string
-========================================================= */
-
-const normalizeCategoryId = (
-  categoryId,
-  fieldName
-) => {
+const normalizeCategoryId = (categoryId, fieldName) => {
   if (
     categoryId === null ||
     categoryId === undefined ||
@@ -211,11 +199,6 @@ const normalizeCategoryId = (
   ) {
     return null;
   }
-
-  /*
-    Populated category object পাঠানো হলেও
-    এর _id গ্রহণ করা হবে।
-  */
 
   const rawCategoryId =
     categoryId &&
@@ -237,15 +220,7 @@ const normalizeCategoryId = (
       ? rawCategoryId.trim()
       : rawCategoryId;
 
-  if (cleanCategoryId === "") {
-    return null;
-  }
-
-  if (
-    !mongoose.isValidObjectId(
-      cleanCategoryId
-    )
-  ) {
+  if (!mongoose.isValidObjectId(cleanCategoryId)) {
     throw new ShowcaseValidationError(
       `${fieldName} contains an invalid category ID.`
     );
@@ -254,18 +229,7 @@ const normalizeCategoryId = (
   return cleanCategoryId.toString();
 };
 
-/* =========================================================
-   HELPER: NORMALIZE ONE SHOWCASE
-
-   প্রতিটি showcase-এ থাকবে:
-   - Individual title
-   - Fixed 3 category slots
-========================================================= */
-
-const normalizeShowcase = (
-  showcase,
-  showcaseName
-) => {
+const normalizeShowcase = (showcase, index) => {
   const safeShowcase =
     showcase &&
     typeof showcase === "object" &&
@@ -273,473 +237,328 @@ const normalizeShowcase = (
       ? showcase
       : {};
 
+  const fallbackTitle =
+    DEFAULT_SHOWCASES[index]?.title ||
+    `Category Showcase ${index + 1}`;
+
   return {
-    title:
-      normalizeShowcaseTitle(
-        safeShowcase.title,
-        showcaseName
-      ),
-
-    categoryOne:
-      normalizeCategoryId(
-        safeShowcase.categoryOne,
-        `${showcaseName}.categoryOne`
-      ),
-
-    categoryTwo:
-      normalizeCategoryId(
-        safeShowcase.categoryTwo,
-        `${showcaseName}.categoryTwo`
-      ),
-
-    categoryThree:
-      normalizeCategoryId(
-        safeShowcase.categoryThree,
-        `${showcaseName}.categoryThree`
-      ),
+    key: createSectionKey(
+      safeShowcase.key,
+      `showcase-${index + 1}`,
+    ),
+    title: normalizeShowcaseTitle(
+      safeShowcase.title,
+      fallbackTitle,
+    ),
+    active: safeShowcase.active !== false,
+    order: Math.max(1, Number(safeShowcase.order) || index + 1),
+    layoutOrder: Math.max(
+      1,
+      Number(safeShowcase.layoutOrder) || index * 2 + 2,
+    ),
+    categoryOne: normalizeCategoryId(
+      safeShowcase.categoryOne,
+      `showcases[${index}].categoryOne`,
+    ),
+    categoryTwo: normalizeCategoryId(
+      safeShowcase.categoryTwo,
+      `showcases[${index}].categoryTwo`,
+    ),
+    categoryThree: normalizeCategoryId(
+      safeShowcase.categoryThree,
+      `showcases[${index}].categoryThree`,
+    ),
   };
 };
 
-/* =========================================================
-   HELPER: NORMALIZE COMPLETE REQUEST BODY
-========================================================= */
+const normalizeLegacyPayload = (body) =>
+  DEFAULT_SHOWCASES.map((defaults, index) =>
+    normalizeShowcase(
+      {
+        ...defaults,
+        ...(body?.[defaults.key] || {}),
+        key: defaults.key,
+        order: index + 1,
+        layoutOrder: defaults.layoutOrder,
+      },
+      index,
+    ),
+  );
 
-const normalizeShowcasePayload = (
-  body
-) => {
+const normalizeShowcasePayload = (body) => {
   const safeBody =
-    body &&
-    typeof body === "object" &&
-    !Array.isArray(body)
+    body && typeof body === "object" && !Array.isArray(body)
       ? body
       : {};
 
-  return {
-    showcaseOne:
-      normalizeShowcase(
-        safeBody.showcaseOne,
-        "showcaseOne"
-      ),
+  const inputShowcases = Array.isArray(safeBody.showcases)
+    ? safeBody.showcases
+    : normalizeLegacyPayload(safeBody);
 
-    showcaseTwo:
-      normalizeShowcase(
-        safeBody.showcaseTwo,
-        "showcaseTwo"
-      ),
+  const showcases = inputShowcases.map(normalizeShowcase);
+  const seenKeys = new Set();
 
-    showcaseThree:
-      normalizeShowcase(
-        safeBody.showcaseThree,
-        "showcaseThree"
-      ),
-  };
+  for (const showcase of showcases) {
+    const comparableKey = showcase.key.toLowerCase();
+
+    if (seenKeys.has(comparableKey)) {
+      throw new ShowcaseValidationError(
+        `Duplicate category showcase key: ${showcase.key}`
+      );
+    }
+
+    seenKeys.add(comparableKey);
+  }
+
+  return showcases
+    .sort((a, b) => a.order - b.order)
+    .map((showcase, index) => ({
+      ...showcase,
+      order: index + 1,
+    }));
 };
 
-/* =========================================================
-   HELPER: COLLECT UNIQUE CATEGORY IDS
-
-   title field category ID নয়।
-   তাই শুধু নির্দিষ্ট category slot collect করা হবে।
-========================================================= */
-
-const collectCategoryIds = (
-  showcasePayload
-) => {
+const collectCategoryIds = (showcases) => {
   const categoryIds = [];
 
-  Object.values(
-    showcasePayload
-  ).forEach((showcase) => {
-    CATEGORY_SLOT_KEYS.forEach(
-      (slotKey) => {
-        const categoryId =
-          showcase[slotKey];
+  showcases.forEach((showcase) => {
+    CATEGORY_SLOT_KEYS.forEach((slotKey) => {
+      const categoryId = showcase[slotKey];
 
-        if (categoryId) {
-          categoryIds.push(
-            categoryId.toString()
-          );
-        }
+      if (categoryId) {
+        categoryIds.push(categoryId.toString());
       }
-    );
+    });
   });
 
-  return [
-    ...new Set(categoryIds),
-  ];
+  return [...new Set(categoryIds)];
 };
 
-/* =========================================================
-   HELPER: VALIDATE CATEGORY EXISTENCE
-========================================================= */
+const validateCategoryIds = async (showcases, tenantId) => {
+  const categoryIds = collectCategoryIds(showcases);
 
-const validateCategoryIds = async (
-  showcasePayload,
-  tenantId
-) => {
-  const categoryIds =
-    collectCategoryIds(
-      showcasePayload
-    );
-
-  if (
-    categoryIds.length === 0
-  ) {
+  if (categoryIds.length === 0) {
     return;
   }
 
-  const existingCategories =
-    await Category.find({
-      tenant: tenantId,
+  const existingCategories = await Category.find({
+    tenant: tenantId,
+    _id: { $in: categoryIds },
+  })
+    .select("_id")
+    .lean();
 
-      _id: {
-        $in: categoryIds,
-      },
-    })
-      .select("_id")
-      .lean();
+  const existingCategoryIds = new Set(
+    existingCategories.map((category) =>
+      category._id.toString()
+    )
+  );
 
-  const existingCategoryIds =
-    new Set(
-      existingCategories.map(
-        (category) =>
-          category._id.toString()
-      )
-    );
+  const missingCategoryIds = categoryIds.filter(
+    (categoryId) => !existingCategoryIds.has(categoryId)
+  );
 
-  const missingCategoryIds =
-    categoryIds.filter(
-      (categoryId) =>
-        !existingCategoryIds.has(
-          categoryId
-        )
-    );
-
-  if (
-    missingCategoryIds.length > 0
-  ) {
+  if (missingCategoryIds.length > 0) {
     throw new ShowcaseValidationError(
       "One or more selected categories do not exist."
     );
   }
 };
 
-/* =========================================================
-   HELPER: ENSURE OLD DOCUMENT TITLES
+const buildLegacySection = (showcases, key, fallback) => {
+  const showcase = showcases.find((item) => item.key === key);
 
-   পুরোনো database document-এ title field না থাকলে
-   এখানে default title save করা হবে।
-========================================================= */
+  if (!showcase) {
+    return {
+      ...fallback,
+      active: false,
+      categoryOne: null,
+      categoryTwo: null,
+      categoryThree: null,
+    };
+  }
 
-const ensureShowcaseTitles =
-  async (showcaseConfig) => {
-    let hasChanges = false;
+  return {
+    key: showcase.key,
+    title: showcase.title,
+    active: showcase.active,
+    order: showcase.order,
+    layoutOrder: showcase.layoutOrder,
+    categoryOne: showcase.categoryOne,
+    categoryTwo: showcase.categoryTwo,
+    categoryThree: showcase.categoryThree,
+  };
+};
 
-    if (
-      !showcaseConfig
-        .showcaseOne
-        ?.title
-        ?.trim()
-    ) {
-      showcaseConfig.showcaseOne.title =
-        DEFAULT_SHOWCASE_TITLES
-          .showcaseOne;
-
-      hasChanges = true;
-    }
-
-    if (
-      !showcaseConfig
-        .showcaseTwo
-        ?.title
-        ?.trim()
-    ) {
-      showcaseConfig.showcaseTwo.title =
-        DEFAULT_SHOWCASE_TITLES
-          .showcaseTwo;
-
-      hasChanges = true;
-    }
-
-    if (
-      !showcaseConfig
-        .showcaseThree
-        ?.title
-        ?.trim()
-    ) {
-      showcaseConfig.showcaseThree.title =
-        DEFAULT_SHOWCASE_TITLES
-          .showcaseThree;
-
-      hasChanges = true;
-    }
-
-    if (hasChanges) {
-      await showcaseConfig.save();
-    }
-
+const ensureDynamicShowcases = async (showcaseConfig) => {
+  if (
+    Array.isArray(showcaseConfig.showcases) &&
+    showcaseConfig.showcases.length > 0
+  ) {
     return showcaseConfig;
-  };
+  }
 
-/* =========================================================
-   HELPER: GET OR CREATE CONFIGURATION
-========================================================= */
+  const legacySections = DEFAULT_SHOWCASES.map((defaults) => {
+    const legacy = showcaseConfig[defaults.key] || {};
 
-const getOrCreateShowcaseConfig =
-  async (tenantId) => {
-    let showcaseConfig =
-      await HomepageCategoryShowcase.findOne(
-        {
-          tenant: tenantId,
+    return {
+      key: defaults.key,
+      title: legacy.title?.trim() || defaults.title,
+      active: legacy.active !== false,
+      order: defaults.order,
+      layoutOrder: defaults.layoutOrder,
+      categoryOne: legacy.categoryOne || null,
+      categoryTwo: legacy.categoryTwo || null,
+      categoryThree: legacy.categoryThree || null,
+    };
+  });
 
-          key:
-            SHOWCASE_CONFIG_KEY,
-        }
-      );
+  showcaseConfig.showcases = legacySections;
+  await showcaseConfig.save();
 
-    if (!showcaseConfig) {
-      showcaseConfig =
-        await HomepageCategoryShowcase.create(
-          {
-            tenant: tenantId,
+  return showcaseConfig;
+};
 
-            key:
-              SHOWCASE_CONFIG_KEY,
+const getOrCreateShowcaseConfig = async (tenantId) => {
+  let showcaseConfig =
+    await HomepageCategoryShowcase.findOne({
+      tenant: tenantId,
+      key: SHOWCASE_CONFIG_KEY,
+    });
 
-            showcaseOne: {
-              title:
-                DEFAULT_SHOWCASE_TITLES
-                  .showcaseOne,
-            },
+  if (!showcaseConfig) {
+    showcaseConfig = await HomepageCategoryShowcase.create({
+      tenant: tenantId,
+      key: SHOWCASE_CONFIG_KEY,
+      showcases: DEFAULT_SHOWCASES,
+    });
+  }
 
-            showcaseTwo: {
-              title:
-                DEFAULT_SHOWCASE_TITLES
-                  .showcaseTwo,
-            },
+  await ensureDynamicShowcases(showcaseConfig);
 
-            showcaseThree: {
-              title:
-                DEFAULT_SHOWCASE_TITLES
-                  .showcaseThree,
-            },
-          }
-        );
-    }
-
-    await ensureShowcaseTitles(
-      showcaseConfig
-    );
-
-    return populateCategorySlots(
-      HomepageCategoryShowcase.findOne({
-        _id: showcaseConfig._id,
-        tenant: tenantId,
-      })
-    );
-  };
+  return populateCategorySlots(
+    HomepageCategoryShowcase.findOne({
+      _id: showcaseConfig._id,
+      tenant: tenantId,
+    })
+  );
+};
 
 /* =========================================================
    GET HOMEPAGE CATEGORY SHOWCASES
-
-   Public route:
-   GET /api/homepage-category-showcases
 ========================================================= */
 
-const getHomepageCategoryShowcases =
-  async (req, res) => {
-    try {
-      const tenantId =
-        ensureTenantId(req, res);
+const getHomepageCategoryShowcases = async (req, res) => {
+  try {
+    const tenantId = ensureTenantId(req, res);
 
-      if (!tenantId) {
-        return;
-      }
+    if (!tenantId) return;
 
-      const showcaseConfig =
-        await getOrCreateShowcaseConfig(
-          tenantId
-        );
+    const showcaseConfig =
+      await getOrCreateShowcaseConfig(tenantId);
 
-      return res
-        .status(200)
-        .json({
-          success: true,
-          showcaseConfig,
-        });
-    } catch (error) {
-      console.error(
-        "Get homepage category showcases error:",
-        error
-      );
+    return res.status(200).json({
+      success: true,
+      showcaseConfig,
+    });
+  } catch (error) {
+    console.error(
+      "Get homepage category showcases error:",
+      error
+    );
 
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message:
-            "Could not load homepage category showcases.",
-        });
-    }
-  };
+    return res.status(500).json({
+      success: false,
+      message: "Could not load homepage category showcases.",
+    });
+  }
+};
 
 /* =========================================================
    UPDATE HOMEPAGE CATEGORY SHOWCASES
-
-   Admin route:
-   PUT /api/homepage-category-showcases
 ========================================================= */
 
-const updateHomepageCategoryShowcases =
-  async (req, res) => {
-    try {
-      const tenantId =
-        ensureTenantId(req, res);
+const updateHomepageCategoryShowcases = async (req, res) => {
+  try {
+    const tenantId = ensureTenantId(req, res);
 
-      if (!tenantId) {
-        return;
+    if (!tenantId) return;
+
+    const showcases = normalizeShowcasePayload(req.body);
+
+    await validateCategoryIds(showcases, tenantId);
+
+    const legacyOne = buildLegacySection(
+      showcases,
+      "showcaseOne",
+      DEFAULT_SHOWCASES[0],
+    );
+    const legacyTwo = buildLegacySection(
+      showcases,
+      "showcaseTwo",
+      DEFAULT_SHOWCASES[1],
+    );
+    const legacyThree = buildLegacySection(
+      showcases,
+      "showcaseThree",
+      DEFAULT_SHOWCASES[2],
+    );
+
+    const query = HomepageCategoryShowcase.findOneAndUpdate(
+      {
+        tenant: tenantId,
+        key: SHOWCASE_CONFIG_KEY,
+      },
+      {
+        $set: {
+          showcases,
+          showcaseOne: legacyOne,
+          showcaseTwo: legacyTwo,
+          showcaseThree: legacyThree,
+        },
+        $setOnInsert: {
+          tenant: tenantId,
+          key: SHOWCASE_CONFIG_KEY,
+        },
+      },
+      {
+        new: true,
+        upsert: true,
+        runValidators: true,
+        setDefaultsOnInsert: true,
       }
+    );
 
-      const showcasePayload =
-        normalizeShowcasePayload(
-          req.body
-        );
+    const showcaseConfig =
+      await populateCategorySlots(query);
 
-      await validateCategoryIds(
-        showcasePayload,
-        tenantId
-      );
+    return res.status(200).json({
+      success: true,
+      message:
+        "Homepage category showcases updated successfully.",
+      showcaseConfig,
+    });
+  } catch (error) {
+    console.error(
+      "Update homepage category showcases error:",
+      error
+    );
 
-      const query =
-        HomepageCategoryShowcase.findOneAndUpdate(
-          {
-            tenant: tenantId,
+    const statusCode =
+      error.statusCode === 400 ||
+      error.name === "ValidationError"
+        ? 400
+        : 500;
 
-            key:
-              SHOWCASE_CONFIG_KEY,
-          },
-          {
-            $set: {
-              "showcaseOne.title":
-                showcasePayload
-                  .showcaseOne
-                  .title,
-
-              "showcaseOne.categoryOne":
-                showcasePayload
-                  .showcaseOne
-                  .categoryOne,
-
-              "showcaseOne.categoryTwo":
-                showcasePayload
-                  .showcaseOne
-                  .categoryTwo,
-
-              "showcaseOne.categoryThree":
-                showcasePayload
-                  .showcaseOne
-                  .categoryThree,
-
-              "showcaseTwo.title":
-                showcasePayload
-                  .showcaseTwo
-                  .title,
-
-              "showcaseTwo.categoryOne":
-                showcasePayload
-                  .showcaseTwo
-                  .categoryOne,
-
-              "showcaseTwo.categoryTwo":
-                showcasePayload
-                  .showcaseTwo
-                  .categoryTwo,
-
-              "showcaseTwo.categoryThree":
-                showcasePayload
-                  .showcaseTwo
-                  .categoryThree,
-
-              "showcaseThree.title":
-                showcasePayload
-                  .showcaseThree
-                  .title,
-
-              "showcaseThree.categoryOne":
-                showcasePayload
-                  .showcaseThree
-                  .categoryOne,
-
-              "showcaseThree.categoryTwo":
-                showcasePayload
-                  .showcaseThree
-                  .categoryTwo,
-
-              "showcaseThree.categoryThree":
-                showcasePayload
-                  .showcaseThree
-                  .categoryThree,
-            },
-
-            $setOnInsert: {
-              tenant: tenantId,
-
-              key:
-                SHOWCASE_CONFIG_KEY,
-            },
-          },
-          {
-            new: true,
-            upsert: true,
-            runValidators: true,
-            setDefaultsOnInsert: true,
-          }
-        );
-
-      const showcaseConfig =
-        await populateCategorySlots(
-          query
-        );
-
-      return res
-        .status(200)
-        .json({
-          success: true,
-
-          message:
-            "Homepage category showcases updated successfully.",
-
-          showcaseConfig,
-        });
-    } catch (error) {
-      console.error(
-        "Update homepage category showcases error:",
-        error
-      );
-
-      const statusCode =
-        error.statusCode === 400 ||
-        error.name ===
-          "ValidationError"
-          ? 400
-          : 500;
-
-      return res
-        .status(statusCode)
-        .json({
-          success: false,
-
-          message:
-            statusCode === 400
-              ? error.message
-              : "Could not update homepage category showcases.",
-        });
-    }
-  };
-
-/* =========================================================
-   EXPORTS
-========================================================= */
+    return res.status(statusCode).json({
+      success: false,
+      message:
+        statusCode === 400
+          ? error.message
+          : "Could not update homepage category showcases.",
+    });
+  }
+};
 
 module.exports = {
   getHomepageCategoryShowcases,
