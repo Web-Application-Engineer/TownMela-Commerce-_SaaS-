@@ -3,6 +3,12 @@ const mongoose = require("mongoose");
 const Cart = require("../models/Cart");
 const Product = require("../models/Product");
 
+const {
+  applyStockClearancePricingToCart,
+} = require(
+  "../services/stockClearancePricingService"
+);
+
 /* =========================================================
    HELPERS
 ========================================================= */
@@ -158,9 +164,17 @@ const isSameProduct = (
 const populateCart = async (
   cartId
 ) => {
-  return Cart.findById(
-    cartId
-  ).populate("items.product");
+  const cart =
+    await Cart.findById(
+      cartId
+    ).populate({
+      path: "items.product",
+      select: "+tenant",
+    });
+
+  return applyStockClearancePricingToCart(
+    cart
+  );
 };
 
 /* =========================================================
@@ -881,9 +895,10 @@ const getCart = async (
       await Cart.findOne({
         guestId:
           normalizedGuestId,
-      }).populate(
-        "items.product"
-      );
+      }).populate({
+        path: "items.product",
+        select: "+tenant",
+      });
 
     if (!cart) {
       return res.status(404).json({
@@ -892,9 +907,14 @@ const getCart = async (
       });
     }
 
+    const pricedCart =
+      await applyStockClearancePricingToCart(
+        cart
+      );
+
     return res.status(200).json({
       success: true,
-      cart,
+      cart: pricedCart,
     });
   } catch (error) {
     console.error(

@@ -272,6 +272,22 @@ const menuItems:
 
   {
     label:
+      "Stock Clearance",
+
+    href:
+      "/admin/stock-clearance",
+
+    icon:
+      TicketPercent,
+
+    roles: [
+      "admin",
+      "superadmin",
+    ],
+  },
+
+  {
+    label:
       "Couriers",
 
     href:

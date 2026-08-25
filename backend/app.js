@@ -136,6 +136,10 @@ const homepageProductSectionSettingRoutes = loadRouter(
   "./routes/homepageProductSectionSettingRoutes"
 );
 
+const stockClearanceRoutes = loadRouter(
+  "./routes/stockClearanceRoutes"
+);
+
 const supplierRoutes = loadRouter(
   "./routes/supplierRoutes"
 );
@@ -563,6 +567,11 @@ app.use(
 app.use(
   "/api/homepage-product-section-settings",
   homepageProductSectionSettingRoutes
+);
+
+app.use(
+  "/api/stock-clearance",
+  stockClearanceRoutes
 );
 
 

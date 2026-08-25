@@ -6,6 +6,13 @@ const Cart = require("../models/Cart");
 const Product = require("../models/Product");
 const Coupon = require("../models/Coupon");
 
+const {
+  getLiveStockClearanceCampaign,
+  getStockClearanceUnitPrice,
+} = require(
+  "../services/stockClearancePricingService"
+);
+
 const unwrapServiceModule = (
   loadedModule
 ) =>
@@ -1233,6 +1240,12 @@ const placeOrder = async (
           );
         }
 
+        const stockClearanceCampaign =
+          await getLiveStockClearanceCampaign({
+            tenantId,
+            session,
+          });
+
         let subtotalAmount = 0;
         const orderItems = [];
 
@@ -1329,9 +1342,11 @@ const placeOrder = async (
               optionName: "color",
             });
 
-          const price = roundMoney(
-            product.price
-          );
+          const price =
+            getStockClearanceUnitPrice(
+              product,
+              stockClearanceCampaign
+            );
 
           const unitCost =
             getProductUnitCost(

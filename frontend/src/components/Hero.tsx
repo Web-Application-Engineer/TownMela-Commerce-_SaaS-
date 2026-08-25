@@ -9,6 +9,9 @@ import {
   useState,
 } from "react";
 
+import StockClearanceHeroTimer from "./StockClearance/StockClearanceHeroTimer";
+import StockClearancePopup from "./StockClearance/StockClearancePopup";
+
 /* =========================================================
    HOMEPAGE BANNER TYPES
 ========================================================= */
@@ -853,9 +856,7 @@ const response = await fetch(
               !bannerLoadError &&
               rightTopBanner && (
                 <Link
-                  href={
-                    rightTopBanner.link
-                  }
+                  href="/offers"
                   className="
                     relative
                     block
@@ -904,6 +905,8 @@ const response = await fetch(
 
                 </Link>
               )}
+
+            <StockClearanceHeroTimer />
           </div>
 
           {/* ===============================================
@@ -1191,6 +1194,8 @@ const response = await fetch(
           </div>
         </div>
       </div>
+
+      <StockClearancePopup />
     </section>
   );
 }
