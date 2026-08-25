@@ -24,10 +24,20 @@ export type CartResponse = {
    CATEGORY TYPES
 ========================================================= */
 
+export type CategoryParent =
+  | string
+  | {
+      _id?: string;
+      name?: string;
+      slug?: string;
+    }
+  | null;
+
 export type Category = {
   _id: string;
   name: string;
   slug?: string;
+  parent?: CategoryParent;
 };
 
 export type CategoriesResponse =
@@ -47,10 +57,8 @@ export type SearchSuggestionProduct = {
   name: string;
   slug?: string;
   image?: string;
-
   price: number;
   oldPrice?: number;
-
   stock?: number;
 
   category?: {

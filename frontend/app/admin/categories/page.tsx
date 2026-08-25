@@ -33,13 +33,24 @@ import DeleteCategoryModal from "@/src/components/Admin/Categories/DeleteCategor
    TYPES
 ========================================================= */
 
+type CategoryParent =
+  | string
+  | {
+      _id?: string;
+      name?: string;
+      slug?: string;
+    }
+  | null;
+
 type Category = {
   _id: string;
   name: string;
   slug: string;
+  parent?: CategoryParent;
   thumbnail?: string;
   featured?: boolean;
   displayOrder?: number;
+  status?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -55,6 +66,73 @@ type CategoriesApiResponse =
 type DeleteCategoryResponse = {
   success?: boolean;
   message?: string;
+};
+
+/* =========================================================
+   CATEGORY HIERARCHY HELPERS
+========================================================= */
+
+const getParentCategoryId = (
+  parent?: CategoryParent,
+) => {
+  if (!parent) {
+    return "";
+  }
+
+  if (typeof parent === "string") {
+    return parent.trim();
+  }
+
+  return parent._id?.trim() ?? "";
+};
+
+const getParentCategoryName = (
+  category: Category,
+  categoriesById: Map<
+    string,
+    Category
+  >,
+) => {
+  if (
+    category.parent &&
+    typeof category.parent ===
+      "object" &&
+    category.parent.name?.trim()
+  ) {
+    return category.parent.name.trim();
+  }
+
+  const parentId =
+    getParentCategoryId(
+      category.parent,
+    );
+
+  return parentId
+    ? categoriesById.get(
+        parentId,
+      )?.name ?? ""
+    : "";
+};
+
+const compareCategories = (
+  firstCategory: Category,
+  secondCategory: Category,
+) => {
+  const orderDifference =
+    Number(
+      firstCategory.displayOrder ?? 0,
+    ) -
+    Number(
+      secondCategory.displayOrder ?? 0,
+    );
+
+  if (orderDifference !== 0) {
+    return orderDifference;
+  }
+
+  return firstCategory.name.localeCompare(
+    secondCategory.name,
+  );
 };
 
 /* =========================================================
@@ -312,28 +390,199 @@ export default function AdminCategoriesPage() {
 
   const filteredCategories =
     useMemo(() => {
+      const categoriesById =
+        new Map(
+          categories.map(
+            (category) => [
+              category._id,
+              category,
+            ],
+          ),
+        );
+
+      const mainCategories =
+        categories
+          .filter(
+            (category) =>
+              !getParentCategoryId(
+                category.parent,
+              ),
+          )
+          .sort(
+            compareCategories,
+          );
+
+      const childrenByParent =
+        new Map<
+          string,
+          Category[]
+        >();
+
+      const orphanSubcategories:
+        Category[] = [];
+
+      categories.forEach(
+        (category) => {
+          const parentId =
+            getParentCategoryId(
+              category.parent,
+            );
+
+          if (!parentId) {
+            return;
+          }
+
+          if (
+            !categoriesById.has(
+              parentId,
+            )
+          ) {
+            orphanSubcategories.push(
+              category,
+            );
+
+            return;
+          }
+
+          const currentChildren =
+            childrenByParent.get(
+              parentId,
+            ) ?? [];
+
+          currentChildren.push(
+            category,
+          );
+
+          childrenByParent.set(
+            parentId,
+            currentChildren,
+          );
+        },
+      );
+
+      childrenByParent.forEach(
+        (children) => {
+          children.sort(
+            compareCategories,
+          );
+        },
+      );
+
+      orphanSubcategories.sort(
+        compareCategories,
+      );
+
       const keyword =
         searchKeyword
           .trim()
           .toLowerCase();
 
-      if (!keyword) {
-        return categories;
-      }
+      const matchesKeyword = (
+        category: Category,
+      ) => {
+        if (!keyword) {
+          return true;
+        }
 
-      return categories.filter(
-        (category) =>
+        const parentName =
+          getParentCategoryName(
+            category,
+            categoriesById,
+          ).toLowerCase();
+
+        return (
           category.name
             .toLowerCase()
             .includes(keyword) ||
           category.slug
             .toLowerCase()
-            .includes(keyword),
+            .includes(keyword) ||
+          parentName.includes(
+            keyword,
+          )
+        );
+      };
+
+      const orderedCategories:
+        Category[] = [];
+
+      mainCategories.forEach(
+        (mainCategory) => {
+          const children =
+            childrenByParent.get(
+              mainCategory._id,
+            ) ?? [];
+
+          if (!keyword) {
+            orderedCategories.push(
+              mainCategory,
+              ...children,
+            );
+
+            return;
+          }
+
+          const mainMatches =
+            matchesKeyword(
+              mainCategory,
+            );
+
+          const matchingChildren =
+            children.filter(
+              matchesKeyword,
+            );
+
+          if (mainMatches) {
+            orderedCategories.push(
+              mainCategory,
+              ...children,
+            );
+
+            return;
+          }
+
+          if (
+            matchingChildren.length > 0
+          ) {
+            orderedCategories.push(
+              mainCategory,
+              ...matchingChildren,
+            );
+          }
+        },
       );
+
+      orphanSubcategories
+        .filter(
+          matchesKeyword,
+        )
+        .forEach(
+          (category) => {
+            orderedCategories.push(
+              category,
+            );
+          },
+        );
+
+      return orderedCategories;
     }, [
       categories,
       searchKeyword,
     ]);
+
+  const categoriesById =
+    useMemo(
+      () =>
+        new Map(
+          categories.map(
+            (category) => [
+              category._id,
+              category,
+            ],
+          ),
+        ),
+      [categories],
+    );
 
   return (
     <>
@@ -610,7 +859,7 @@ export default function AdminCategoriesPage() {
                     event.target.value,
                   )
                 }
-                placeholder="Search by category name or slug"
+                placeholder="Search category, subcategory or slug"
                 className="
                   h-12
                   w-full
@@ -776,182 +1025,246 @@ export default function AdminCategoriesPage() {
 
                 <tbody>
                   {filteredCategories.map(
-                    (category) => (
-                      <tr
-                        key={category._id}
-                        className="
-                          border-b
-                          border-gray-100
-                          transition
-                          hover:bg-gray-50/70
-                          last:border-b-0
-                        "
-                      >
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-3">
-<div
-  className="
-    flex
-    h-12
-    w-12
-    shrink-0
-    items-center
-    justify-center
-    overflow-hidden
-    rounded-xl
-    border
-    border-gray-200
-    bg-orange-50
-    text-[#FF6900]
-  "
->
-  {category.thumbnail ? (
-    <img
-      src={category.thumbnail}
-      alt={`${category.name} thumbnail`}
-      className="
-        h-full
-        w-full
-        object-cover
-      "
-      onError={(event) => {
-        event.currentTarget.style.display =
-          "none";
+                    (category) => {
+                      const parentId =
+                        getParentCategoryId(
+                          category.parent,
+                        );
 
-        const fallback =
-          event.currentTarget
-            .nextElementSibling;
+                      const isSubcategory =
+                        Boolean(
+                          parentId,
+                        );
 
-        if (
-          fallback instanceof HTMLElement
-        ) {
-          fallback.style.display =
-            "flex";
-        }
-      }}
-    />
-  ) : null}
+                      const parentName =
+                        getParentCategoryName(
+                          category,
+                          categoriesById,
+                        );
 
-  <div
-    className={`
-      h-full
-      w-full
-      items-center
-      justify-center
-      ${
-        category.thumbnail
-          ? "hidden"
-          : "flex"
-      }
-    `}
-  >
-    <FolderTree
-      size={21}
-    />
-  </div>
-</div>
+                      return (
+                        <tr
+                          key={category._id}
+                          className={`
+                            border-b
+                            border-gray-100
+                            transition
+                            hover:bg-gray-50/70
+                            last:border-b-0
+                            ${
+                              isSubcategory
+                                ? "bg-orange-50/20"
+                                : ""
+                            }
+                          `}
+                        >
+                          <td className="px-5 py-4">
+                            <div
+                              className={`
+                                flex
+                                items-center
+                                gap-3
+                                ${
+                                  isSubcategory
+                                    ? "pl-5"
+                                    : ""
+                                }
+                              `}
+                            >
+                              {isSubcategory && (
+                                <span
+                                  aria-hidden="true"
+                                  className="shrink-0 text-lg font-black text-[#FF6900]"
+                                >
+                                  ↳
+                                </span>
+                              )}
 
-                            <p className="max-w-[260px] truncate font-extrabold text-[#0B1F3A]">
-                              {category.name}
-                            </p>
-                          </div>
-                        </td>
+                              <div
+                                className="
+                                  flex
+                                  h-12
+                                  w-12
+                                  shrink-0
+                                  items-center
+                                  justify-center
+                                  overflow-hidden
+                                  rounded-xl
+                                  border
+                                  border-gray-200
+                                  bg-orange-50
+                                  text-[#FF6900]
+                                "
+                              >
+                                {category.thumbnail ? (
+                                  <img
+                                    src={
+                                      category.thumbnail
+                                    }
+                                    alt={`${category.name} thumbnail`}
+                                    className="
+                                      h-full
+                                      w-full
+                                      object-cover
+                                    "
+                                    onError={(
+                                      event,
+                                    ) => {
+                                      event.currentTarget.style.display =
+                                        "none";
 
-                        <td className="px-5 py-4">
-                          <span
-                            className="
-                              inline-flex
-                              max-w-[240px]
-                              truncate
-                              rounded-full
-                              bg-gray-100
-                              px-3
-                              py-1.5
-                              text-xs
-                              font-bold
-                              text-gray-600
-                            "
-                          >
-                            {category.slug}
-                          </span>
-                        </td>
+                                      const fallback =
+                                        event
+                                          .currentTarget
+                                          .nextElementSibling;
 
-                        <td className="px-5 py-4 text-center">
-                          <span className="inline-flex min-w-[42px] items-center justify-center rounded-lg bg-blue-50 px-3 py-1.5 text-sm font-extrabold text-blue-700">
-                            {category.displayOrder ?? 0}
-                          </span>
-                        </td>
+                                      if (
+                                        fallback instanceof
+                                        HTMLElement
+                                      ) {
+                                        fallback.style.display =
+                                          "flex";
+                                      }
+                                    }}
+                                  />
+                                ) : null}
 
-                        <td className="px-5 py-4 text-sm font-semibold text-gray-500">
-                          {category.createdAt
-                            ? new Date(
-                                category.createdAt,
-                              ).toLocaleDateString(
-                                "en-BD",
-                                {
-                                  year:
-                                    "numeric",
-                                  month:
-                                    "short",
-                                  day:
-                                    "numeric",
-                                },
-                              )
-                            : "—"}
-                        </td>
+                                <div
+                                  className={`
+                                    h-full
+                                    w-full
+                                    items-center
+                                    justify-center
+                                    ${
+                                      category.thumbnail
+                                        ? "hidden"
+                                        : "flex"
+                                    }
+                                  `}
+                                >
+                                  <FolderTree
+                                    size={21}
+                                  />
+                                </div>
+                              </div>
 
-                        <td className="px-5 py-4 text-right">
-                          <div className="inline-flex items-center gap-2">
-                            <Link
-                              href={`/admin/categories/${category._id}/edit`}
+                              <div className="min-w-0">
+                                <p className="max-w-[260px] truncate font-extrabold text-[#0B1F3A]">
+                                  {category.name}
+                                </p>
+
+                                {isSubcategory ? (
+                                  <p className="mt-1 max-w-[280px] truncate text-xs font-bold text-[#FF6900]">
+                                    Subcategory
+                                    {parentName
+                                      ? ` of ${parentName}`
+                                      : ""}
+                                  </p>
+                                ) : (
+                                  <p className="mt-1 text-xs font-bold text-gray-400">
+                                    Main Category
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <span
                               className="
-                                rounded-lg
-                                border
-                                border-gray-200
+                                inline-flex
+                                max-w-[240px]
+                                truncate
+                                rounded-full
+                                bg-gray-100
                                 px-3
-                                py-2
+                                py-1.5
                                 text-xs
-                                font-extrabold
-                                text-[#0B1F3A]
-                                transition
-                                hover:border-[#FF6900]
-                                hover:text-[#FF6900]
+                                font-bold
+                                text-gray-600
                               "
                             >
-                              Edit
-                            </Link>
+                              {category.slug}
+                            </span>
+                          </td>
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                openDeleteModal(
-                                  category,
+                          <td className="px-5 py-4 text-center">
+                            <span className="inline-flex min-w-[42px] items-center justify-center rounded-lg bg-blue-50 px-3 py-1.5 text-sm font-extrabold text-blue-700">
+                              {category.displayOrder ?? 0}
+                            </span>
+                          </td>
+
+                          <td className="px-5 py-4 text-sm font-semibold text-gray-500">
+                            {category.createdAt
+                              ? new Date(
+                                  category.createdAt,
+                                ).toLocaleDateString(
+                                  "en-BD",
+                                  {
+                                    year:
+                                      "numeric",
+                                    month:
+                                      "short",
+                                    day:
+                                      "numeric",
+                                  },
                                 )
-                              }
-                              disabled={
-                                isDeleting
-                              }
-                              className="
-                                rounded-lg
-                                border
-                                border-red-200
-                                px-3
-                                py-2
-                                text-xs
-                                font-extrabold
-                                text-red-600
-                                transition
-                                hover:bg-red-50
-                                disabled:cursor-not-allowed
-                                disabled:opacity-50
-                              "
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ),
+                              : "—"}
+                          </td>
+
+                          <td className="px-5 py-4 text-right">
+                            <div className="inline-flex items-center gap-2">
+                              <Link
+                                href={`/admin/categories/${category._id}/edit`}
+                                className="
+                                  rounded-lg
+                                  border
+                                  border-gray-200
+                                  px-3
+                                  py-2
+                                  text-xs
+                                  font-extrabold
+                                  text-[#0B1F3A]
+                                  transition
+                                  hover:border-[#FF6900]
+                                  hover:text-[#FF6900]
+                                "
+                              >
+                                Edit
+                              </Link>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openDeleteModal(
+                                    category,
+                                  )
+                                }
+                                disabled={
+                                  isDeleting
+                                }
+                                className="
+                                  rounded-lg
+                                  border
+                                  border-red-200
+                                  px-3
+                                  py-2
+                                  text-xs
+                                  font-extrabold
+                                  text-red-600
+                                  transition
+                                  hover:bg-red-50
+                                  disabled:cursor-not-allowed
+                                  disabled:opacity-50
+                                "
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    },
                   )}
                 </tbody>
               </table>

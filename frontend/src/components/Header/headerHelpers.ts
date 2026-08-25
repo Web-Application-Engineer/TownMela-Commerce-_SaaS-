@@ -136,6 +136,61 @@ export function isPathActive(
 }
 
 /* =========================================================
+   CATEGORY PARENT PREPARATION
+========================================================= */
+
+function prepareCategoryParent(
+  parent: Category["parent"],
+): Category["parent"] {
+  if (!parent) {
+    return null;
+  }
+
+  if (typeof parent === "string") {
+    const parentId =
+      parent.trim();
+
+    return parentId || null;
+  }
+
+  const parentId =
+    typeof parent._id === "string"
+      ? parent._id.trim()
+      : "";
+
+  if (!parentId) {
+    return null;
+  }
+
+  const parentName =
+    typeof parent.name === "string"
+      ? parent.name.trim()
+      : "";
+
+  const parentSlug =
+    typeof parent.slug === "string" &&
+    parent.slug.trim()
+      ? normalizeSlug(
+          parent.slug,
+        )
+      : parentName
+        ? normalizeSlug(
+            parentName,
+          )
+        : "";
+
+  return {
+    _id: parentId,
+    ...(parentName && {
+      name: parentName,
+    }),
+    ...(parentSlug && {
+      slug: parentSlug,
+    }),
+  };
+}
+
+/* =========================================================
    CATEGORY PREPARATION
 ========================================================= */
 
@@ -185,11 +240,17 @@ export function prepareCategories(
           typeof category._id ===
             "string" &&
           category._id.trim()
-            ? category._id
+            ? category._id.trim()
             : categorySlug,
 
         name: categoryName,
+
         slug: categorySlug,
+
+        parent:
+          prepareCategoryParent(
+            category.parent,
+          ),
       });
     },
   );

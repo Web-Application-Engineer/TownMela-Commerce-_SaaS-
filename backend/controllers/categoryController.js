@@ -1,3 +1,5 @@
+const mongoose = require("mongoose");
+
 const Category = require("../models/Category");
 
 const resolveTenantId = (req) =>
@@ -85,6 +87,111 @@ const parseHomepageSection = (
   return parsedValue;
 };
 
+
+/* =========================================================
+   PARENT CATEGORY HELPERS
+
+   null = Main Category
+   ObjectId = Subcategory
+
+   TownMela currently supports one subcategory level only.
+========================================================= */
+
+const normalizeParentId = (value) => {
+  if (
+    value === undefined ||
+    value === null ||
+    value === "" ||
+    value === "null"
+  ) {
+    return null;
+  }
+
+  const cleanValue = String(value).trim();
+
+  if (!cleanValue) {
+    return null;
+  }
+
+  return mongoose.Types.ObjectId.isValid(
+    cleanValue,
+  )
+    ? cleanValue
+    : undefined;
+};
+
+const getValidatedParentCategory =
+  async ({
+    parentId,
+    tenantId,
+    currentCategoryId = "",
+  }) => {
+    if (parentId === null) {
+      return null;
+    }
+
+    if (parentId === undefined) {
+      const error = new Error(
+        "Invalid parent category ID",
+      );
+
+      error.statusCode = 400;
+
+      throw error;
+    }
+
+    if (
+      currentCategoryId &&
+      String(parentId) ===
+        String(currentCategoryId)
+    ) {
+      const error = new Error(
+        "A category cannot be its own parent",
+      );
+
+      error.statusCode = 400;
+
+      throw error;
+    }
+
+    const parentCategory =
+      await Category.findOne({
+        _id: parentId,
+        tenant: tenantId,
+      }).select(
+        "_id name slug parent status",
+      );
+
+    if (!parentCategory) {
+      const error = new Error(
+        "Parent category not found for this tenant",
+      );
+
+      error.statusCode = 400;
+
+      throw error;
+    }
+
+    if (parentCategory.parent) {
+      const error = new Error(
+        "A subcategory cannot be used as a parent category",
+      );
+
+      error.statusCode = 400;
+
+      throw error;
+    }
+
+    return parentCategory;
+  };
+
+const populateParentCategory = (document) =>
+  document.populate({
+    path: "parent",
+    select:
+      "name slug thumbnail status",
+  });
+
 /* =========================================================
    CREATE CATEGORY
 ========================================================= */
@@ -104,6 +211,7 @@ const createCategory = async (
     const {
       name,
       slug,
+      parent = null,
       thumbnail = "",
       featured = false,
       homepageSection = 1,
@@ -127,6 +235,9 @@ const createCategory = async (
       typeof thumbnail === "string"
         ? thumbnail.trim()
         : "";
+
+    const normalizedParentId =
+      normalizeParentId(parent);
 
     const parsedHomepageSection =
       parseHomepageSection(
@@ -164,6 +275,13 @@ const createCategory = async (
       });
     }
 
+    const parentCategory =
+      await getValidatedParentCategory({
+        parentId:
+          normalizedParentId,
+        tenantId,
+      });
+
     const escapedName =
       escapeRegex(cleanName);
 
@@ -197,6 +315,8 @@ const createCategory = async (
         tenant: tenantId,
         name: cleanName,
         slug: cleanSlug,
+        parent:
+          parentCategory?._id ?? null,
         thumbnail:
           cleanThumbnail,
 
@@ -217,6 +337,10 @@ const createCategory = async (
             : true,
       });
 
+    await populateParentCategory(
+      category,
+    );
+
     return res.status(201).json({
       success: true,
       message:
@@ -228,6 +352,17 @@ const createCategory = async (
       "Create category error:",
       error,
     );
+
+    if (error?.statusCode) {
+      return res
+        .status(error.statusCode)
+        .json({
+          success: false,
+          message:
+            error.message ||
+            "Category request failed",
+        });
+    }
 
     if (error?.code === 11000) {
       return res.status(400).json({
@@ -289,6 +424,46 @@ const getCategories = async (
       filter.status = false;
     }
 
+    if (req.query.parent !== undefined) {
+      const parentQueryValue =
+        String(req.query.parent)
+          .trim()
+          .toLowerCase();
+
+      if (
+        [
+          "",
+          "null",
+          "none",
+          "main",
+          "root",
+        ].includes(parentQueryValue)
+      ) {
+        filter.parent = null;
+      } else {
+        const normalizedParentId =
+          normalizeParentId(
+            req.query.parent,
+          );
+
+        if (
+          normalizedParentId ===
+          undefined
+        ) {
+          return res
+            .status(400)
+            .json({
+              success: false,
+              message:
+                "Invalid parent category ID",
+            });
+        }
+
+        filter.parent =
+          normalizedParentId;
+      }
+    }
+
     if (
       req.query.homepageSection !==
       undefined
@@ -313,11 +488,17 @@ const getCategories = async (
     }
 
     const categories =
-      await Category.find(filter).sort({
-        homepageSection: 1,
-        displayOrder: 1,
-        createdAt: -1,
-      });
+      await Category.find(filter)
+        .populate({
+          path: "parent",
+          select:
+            "name slug thumbnail status",
+        })
+        .sort({
+          homepageSection: 1,
+          displayOrder: 1,
+          createdAt: -1,
+        });
 
     return res.status(200).json({
       success: true,
@@ -358,6 +539,10 @@ const getSingleCategory = async (
       await Category.findOne({
         _id: id,
         tenant: tenantId,
+      }).populate({
+        path: "parent",
+        select:
+          "name slug thumbnail status",
       });
 
     if (!category) {
@@ -421,6 +606,41 @@ const updateCategory = async (
         success: false,
         message: "Category not found",
       });
+    }
+
+    const requestedParentId =
+      req.body.parent === undefined
+        ? existingCategory.parent
+          ? String(existingCategory.parent)
+          : null
+        : normalizeParentId(
+            req.body.parent,
+          );
+
+    const parentCategory =
+      await getValidatedParentCategory({
+        parentId:
+          requestedParentId,
+        tenantId,
+        currentCategoryId: id,
+      });
+
+    if (parentCategory) {
+      const hasChildren =
+        await Category.exists({
+          tenant: tenantId,
+          parent: id,
+        });
+
+      if (hasChildren) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message:
+              "A category with subcategories cannot be changed into a subcategory",
+          });
+      }
     }
 
     const cleanName =
@@ -517,6 +737,9 @@ const updateCategory = async (
     existingCategory.slug =
       cleanSlug;
 
+    existingCategory.parent =
+      parentCategory?._id ?? null;
+
     existingCategory.thumbnail =
       cleanThumbnail;
 
@@ -545,6 +768,10 @@ const updateCategory = async (
     const updatedCategory =
       await existingCategory.save();
 
+    await populateParentCategory(
+      updatedCategory,
+    );
+
     return res.status(200).json({
       success: true,
       message:
@@ -556,6 +783,17 @@ const updateCategory = async (
       "Update category error:",
       error,
     );
+
+    if (error?.statusCode) {
+      return res
+        .status(error.statusCode)
+        .json({
+          success: false,
+          message:
+            error.message ||
+            "Category request failed",
+        });
+    }
 
     if (error?.name === "CastError") {
       return res.status(400).json({
@@ -606,7 +844,7 @@ const deleteCategory = async (
     }
 
     const category =
-      await Category.findOneAndDelete({
+      await Category.findOne({
         _id: req.params.id,
         tenant: tenantId,
       });
@@ -617,6 +855,27 @@ const deleteCategory = async (
         message: "Category not found",
       });
     }
+
+    const hasSubcategories =
+      await Category.exists({
+        tenant: tenantId,
+        parent: category._id,
+      });
+
+    if (hasSubcategories) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Delete this category's subcategories first",
+        });
+    }
+
+    await Category.deleteOne({
+      _id: category._id,
+      tenant: tenantId,
+    });
 
     return res.status(200).json({
       success: true,

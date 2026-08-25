@@ -1568,10 +1568,11 @@ export default function ProductDetailsClient({
               <div
                 className="
                   mt-5
-                  flex
-                  flex-col
+                  grid
+                  w-full
+                  grid-cols-1
                   gap-3
-                  sm:flex-row
+                  sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]
                   sm:items-center
                 "
               >
@@ -1580,8 +1581,9 @@ export default function ProductDetailsClient({
                 <div
                   className="
                     flex
-                    h-11
+                    min-h-[44px]
                     w-full
+                    min-w-0
                     items-center
                     overflow-hidden
                     rounded-md
@@ -1663,16 +1665,19 @@ export default function ProductDetailsClient({
                   }
                   className="
                     flex
-                    h-11
-                    flex-1
+                    min-h-[44px]
+                    w-full
+                    min-w-0
                     items-center
                     justify-center
                     gap-2
                     rounded-md
                     bg-[#FF6900]
                     px-4
+                    py-2.5
                     text-sm
                     font-semibold
+                    leading-5
                     text-white
                     transition-colors
                     hover:bg-[#e85f00]
@@ -1720,17 +1725,21 @@ export default function ProductDetailsClient({
                   }
                   className="
                     flex
-                    h-11
-                    flex-1
+                    min-h-[44px]
+                    w-full
+                    min-w-0
                     items-center
                     justify-center
                     gap-2
                     rounded-md
                     border
                     border-[#FF6900]
+                    bg-white
                     px-4
+                    py-2.5
                     text-sm
                     font-semibold
+                    leading-5
                     text-[#FF6900]
                     transition-colors
                     hover:bg-[#FF6900]
@@ -1882,7 +1891,7 @@ export default function ProductDetailsClient({
                 className="
                   mt-4
                   rounded-md
-                  bg-[#234f76]
+                  bg-[#17181D]
                   px-4
                   py-4
                   text-center

@@ -36,6 +36,20 @@ const categorySchema = new mongoose.Schema(
     },
 
     /* =====================================================
+       PARENT CATEGORY
+
+       null = Main Category
+       ObjectId = Subcategory of that Category
+    ===================================================== */
+
+    parent: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Category",
+      default: null,
+      index: true,
+    },
+
+    /* =====================================================
        CATEGORY THUMBNAIL
     ===================================================== */
 
@@ -123,6 +137,13 @@ categorySchema.index({
   tenant: 1,
   status: 1,
   homepageSection: 1,
+  displayOrder: 1,
+});
+
+categorySchema.index({
+  tenant: 1,
+  parent: 1,
+  status: 1,
   displayOrder: 1,
 });
 

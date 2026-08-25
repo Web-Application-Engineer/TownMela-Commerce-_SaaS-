@@ -46,10 +46,36 @@ type CategoryFormMode =
   | "create"
   | "edit";
 
+type CategoryParentValue =
+  | string
+  | {
+      _id?: string;
+      name?: string;
+      slug?: string;
+    }
+  | null;
+
+type ParentCategoryOption = {
+  _id: string;
+  name: string;
+  slug: string;
+  parent?: CategoryParentValue;
+  status?: boolean;
+};
+
+type CategoriesApiResponse =
+  | ParentCategoryOption[]
+  | {
+      success?: boolean;
+      categories?: ParentCategoryOption[];
+      message?: string;
+    };
+
 export type CategoryFormInitialData = {
   _id?: string;
   name?: string;
   slug?: string;
+  parent?: CategoryParentValue;
   thumbnail?: string;
   featured?: boolean;
   homepageSection?: 1 | 2 | 3;
@@ -70,6 +96,7 @@ type CategoryApiResponse = {
     _id: string;
     name: string;
     slug: string;
+    parent?: CategoryParentValue;
     thumbnail?: string;
     featured?: boolean;
     homepageSection?: 1 | 2 | 3;
@@ -112,6 +139,20 @@ function createSlug(
     .replace(/^-+|-+$/g, "");
 }
 
+function getParentCategoryId(
+  value?: CategoryParentValue,
+) {
+  if (!value) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  return value._id?.trim() ?? "";
+}
+
 /* =========================================================
    CATEGORY FORM
 ========================================================= */
@@ -141,6 +182,32 @@ export default function CategoryForm({
   ] = useState(
     initialData?.slug ?? "",
   );
+
+  const [
+    parentCategoryId,
+    setParentCategoryId,
+  ] = useState(
+    getParentCategoryId(
+      initialData?.parent,
+    ),
+  );
+
+  const [
+    parentCategories,
+    setParentCategories,
+  ] = useState<ParentCategoryOption[]>(
+    [],
+  );
+
+  const [
+    isLoadingParentCategories,
+    setIsLoadingParentCategories,
+  ] = useState(false);
+
+  const [
+    parentCategoryLoadError,
+    setParentCategoryLoadError,
+  ] = useState("");
 
   const [
     thumbnail,
@@ -218,6 +285,12 @@ export default function CategoryForm({
       initialData?.slug ?? "",
     );
 
+    setParentCategoryId(
+      getParentCategoryId(
+        initialData?.parent,
+      ),
+    );
+
     setThumbnail(
       initialData?.thumbnail ?? "",
     );
@@ -238,6 +311,139 @@ export default function CategoryForm({
       Boolean(initialData?.slug),
     );
   }, [initialData]);
+
+  /* =======================================================
+     LOAD AVAILABLE PARENT CATEGORIES
+
+     Only active main categories can be selected as a parent.
+     The current category is excluded while editing.
+  ======================================================= */
+
+  useEffect(() => {
+    const controller =
+      new AbortController();
+
+    const loadParentCategories =
+      async () => {
+        try {
+          setIsLoadingParentCategories(
+            true,
+          );
+
+          setParentCategoryLoadError("");
+
+          const response =
+            await tenantFetch(
+              "/api/categories?status=true",
+              {
+                method: "GET",
+                cache: "no-store",
+                signal:
+                  controller.signal,
+              },
+            );
+
+          const data =
+            (await response.json()) as CategoriesApiResponse;
+
+          if (!response.ok) {
+            const apiMessage =
+              Array.isArray(data)
+                ? ""
+                : data.message || "";
+
+            throw new Error(
+              apiMessage ||
+                "Parent categories could not be loaded.",
+            );
+          }
+
+          const categoryList =
+            Array.isArray(data)
+              ? data
+              : Array.isArray(
+                    data.categories,
+                  )
+                ? data.categories
+                : [];
+
+          const mainCategories =
+            categoryList
+              .filter((category) => {
+                const parentId =
+                  getParentCategoryId(
+                    category.parent,
+                  );
+
+                return (
+                  Boolean(
+                    category?._id,
+                  ) &&
+                  Boolean(
+                    category?.name?.trim(),
+                  ) &&
+                  Boolean(
+                    category?.slug?.trim(),
+                  ) &&
+                  category.status !==
+                    false &&
+                  !parentId &&
+                  category._id !==
+                    categoryId
+                );
+              })
+              .sort(
+                (
+                  firstCategory,
+                  secondCategory,
+                ) =>
+                  firstCategory.name.localeCompare(
+                    secondCategory.name,
+                  ),
+              );
+
+          setParentCategories(
+            mainCategories,
+          );
+        } catch (error) {
+          if (
+            error instanceof
+              DOMException &&
+            error.name ===
+              "AbortError"
+          ) {
+            return;
+          }
+
+          console.error(
+            "Parent category loading error:",
+            error,
+          );
+
+          setParentCategories([]);
+
+          setParentCategoryLoadError(
+            error instanceof Error
+              ? error.message
+              : "Something went wrong while loading parent categories.",
+          );
+        } finally {
+          if (
+            !controller.signal.aborted
+          ) {
+            setIsLoadingParentCategories(
+              false,
+            );
+          }
+        }
+      };
+
+    void loadParentCategories();
+
+    return () => {
+      controller.abort();
+    };
+  }, [categoryId]);
 
   /* =======================================================
      NAME CHANGE
@@ -448,6 +654,13 @@ export default function CategoryForm({
     }
 
     if (
+      categoryId &&
+      parentCategoryId === categoryId
+    ) {
+      return "A category cannot be its own parent.";
+    }
+
+    if (
       ![1, 2, 3].includes(
         homepageSection,
       )
@@ -535,6 +748,9 @@ export default function CategoryForm({
 
             slug:
               createSlug(slug),
+
+            parent:
+              parentCategoryId || null,
 
             thumbnail:
               thumbnail.trim(),
@@ -762,6 +978,64 @@ export default function CategoryForm({
               {createSlug(slug) ||
                 "category-slug"}
             </p>
+          </div>
+
+          <div className="min-w-0 lg:col-span-2">
+            <label
+              htmlFor="parentCategory"
+              className="mb-2 block text-sm font-bold text-[#0B1F3A]"
+            >
+              Parent Category
+            </label>
+
+            <select
+              id="parentCategory"
+              value={parentCategoryId}
+              onChange={(event) =>
+                setParentCategoryId(
+                  event.target.value,
+                )
+              }
+              disabled={
+                isSubmitting ||
+                isLoadingParentCategories
+              }
+              className="h-12 w-full cursor-pointer rounded-xl border border-gray-300 bg-white px-4 text-sm font-semibold text-[#0B1F3A] outline-none transition focus:border-[#FF6900] focus:ring-2 focus:ring-[#FF6900]/10 disabled:cursor-not-allowed disabled:bg-gray-100"
+            >
+              <option value="">
+                None / Main Category
+              </option>
+
+              {parentCategories.map(
+                (category) => (
+                  <option
+                    key={category._id}
+                    value={category._id}
+                  >
+                    {category.name}
+                  </option>
+                ),
+              )}
+            </select>
+
+            <p className="mt-2 text-xs leading-5 text-gray-400">
+              Choose None to create a main
+              category. Select an existing
+              main category to create this
+              category as its subcategory.
+            </p>
+
+            {isLoadingParentCategories && (
+              <p className="mt-2 text-xs font-semibold text-gray-500">
+                Loading main categories...
+              </p>
+            )}
+
+            {parentCategoryLoadError && (
+              <p className="mt-2 text-xs font-semibold text-red-600">
+                {parentCategoryLoadError}
+              </p>
+            )}
           </div>
         </div>
       </section>

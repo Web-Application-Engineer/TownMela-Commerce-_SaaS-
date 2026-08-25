@@ -39,6 +39,26 @@ type MobileDrawerProps = {
 };
 
 /* =========================================================
+   CATEGORY HIERARCHY HELPER
+========================================================= */
+
+function getParentCategoryId(
+  category: Category,
+) {
+  const parent = category.parent;
+
+  if (!parent) {
+    return "";
+  }
+
+  if (typeof parent === "string") {
+    return parent.trim();
+  }
+
+  return parent._id?.trim() ?? "";
+}
+
+/* =========================================================
    MOBILE DRAWER
 ========================================================= */
 
@@ -54,6 +74,11 @@ export default function MobileDrawer({
     isMounted,
     setIsMounted,
   ] = useState(false);
+
+  const [
+    expandedCategoryId,
+    setExpandedCategoryId,
+  ] = useState("");
 
   /* =======================================================
      CLIENT MOUNT
@@ -105,6 +130,86 @@ export default function MobileDrawer({
   }, [
     isOpen,
     onClose,
+  ]);
+
+  const mainCategories =
+    categories.filter(
+      (category) =>
+        !getParentCategoryId(
+          category,
+        ),
+    );
+
+  const subcategoriesByParent =
+    new Map<
+      string,
+      Category[]
+    >();
+
+  categories.forEach(
+    (category) => {
+      const parentId =
+        getParentCategoryId(
+          category,
+        );
+
+      if (!parentId) {
+        return;
+      }
+
+      const currentChildren =
+        subcategoriesByParent.get(
+          parentId,
+        ) ?? [];
+
+      currentChildren.push(
+        category,
+      );
+
+      subcategoriesByParent.set(
+        parentId,
+        currentChildren,
+      );
+    },
+  );
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const activeSubcategory =
+      categories.find(
+        (category) => {
+          const parentId =
+            getParentCategoryId(
+              category,
+            );
+
+          if (!parentId) {
+            return false;
+          }
+
+          return isPathActive(
+            pathname,
+            `/category/${getCategorySlug(
+              category,
+            )}`,
+          );
+        },
+      );
+
+    if (activeSubcategory) {
+      setExpandedCategoryId(
+        getParentCategoryId(
+          activeSubcategory,
+        ),
+      );
+    }
+  }, [
+    categories,
+    isOpen,
+    pathname,
   ]);
 
   if (
@@ -343,7 +448,7 @@ export default function MobileDrawer({
                 )}
               </div>
             ) : (
-              categories.map(
+              mainCategories.map(
                 (category) => {
                   const categorySlug =
                     getCategorySlug(
@@ -353,48 +458,226 @@ export default function MobileDrawer({
                   const categoryHref =
                     `/category/${categorySlug}`;
 
-                  const isActive =
+                  const subcategories =
+                    subcategoriesByParent.get(
+                      category._id,
+                    ) ?? [];
+
+                  const hasSubcategories =
+                    subcategories.length > 0;
+
+                  const isCategoryActive =
                     isPathActive(
                       pathname,
                       categoryHref,
                     );
 
+                  const isSubcategoryActive =
+                    subcategories.some(
+                      (subcategory) =>
+                        isPathActive(
+                          pathname,
+                          `/category/${getCategorySlug(
+                            subcategory,
+                          )}`,
+                        ),
+                    );
+
+                  const isActive =
+                    isCategoryActive ||
+                    isSubcategoryActive;
+
+                  const isExpanded =
+                    expandedCategoryId ===
+                    category._id;
+
+                  if (
+                    !hasSubcategories
+                  ) {
+                    return (
+                      <Link
+                        key={
+                          category._id ||
+                          categorySlug
+                        }
+                        href={
+                          categoryHref
+                        }
+                        onClick={
+                          onClose
+                        }
+                        className={`
+                          flex
+                          w-full
+                          items-center
+                          justify-between
+                          px-6
+                          py-3.5
+                          text-[15px]
+                          font-semibold
+                          transition-colors
+
+                          ${
+                            isActive
+                              ? "bg-orange-50 text-[#FF6900]"
+                              : "text-[#0B1F3A] hover:bg-orange-50 hover:text-[#FF6900]"
+                          }
+                        `}
+                      >
+                        <span>
+                          {
+                            category.name
+                          }
+                        </span>
+
+                        <ChevronRight
+                          size={17}
+                        />
+                      </Link>
+                    );
+                  }
+
                   return (
-                    <Link
+                    <div
                       key={
                         category._id ||
                         categorySlug
                       }
-                      href={
-                        categoryHref
-                      }
-                      onClick={onClose}
-                      className={`
-                        flex
-                        w-full
-                        items-center
-                        justify-between
-                        px-6
-                        py-3.5
-                        text-[15px]
-                        font-semibold
-                        transition-colors
-
-                        ${
-                          isActive
-                            ? "bg-orange-50 text-[#FF6900]"
-                            : "text-[#0B1F3A] hover:bg-orange-50 hover:text-[#FF6900]"
-                        }
-                      `}
+                      className="border-b border-gray-100 last:border-b-0"
                     >
-                      <span>
-                        {category.name}
-                      </span>
+                      <button
+                        type="button"
+                        aria-expanded={
+                          isExpanded
+                        }
+                        onClick={() => {
+                          setExpandedCategoryId(
+                            (
+                              currentId,
+                            ) =>
+                              currentId ===
+                              category._id
+                                ? ""
+                                : category._id,
+                          );
+                        }}
+                        className={`
+                          flex
+                          w-full
+                          items-center
+                          justify-between
+                          px-6
+                          py-3.5
+                          text-left
+                          text-[15px]
+                          font-semibold
+                          transition-colors
 
-                      <ChevronRight
-                        size={17}
-                      />
-                    </Link>
+                          ${
+                            isActive
+                              ? "bg-orange-50 text-[#FF6900]"
+                              : "text-[#0B1F3A] hover:bg-orange-50 hover:text-[#FF6900]"
+                          }
+                        `}
+                      >
+                        <span>
+                          {
+                            category.name
+                          }
+                        </span>
+
+                        <ChevronRight
+                          size={17}
+                          className={`
+                            shrink-0
+                            transition-transform
+                            duration-200
+                            ${
+                              isExpanded
+                                ? "rotate-90"
+                                : ""
+                            }
+                          `}
+                        />
+                      </button>
+
+                      {isExpanded && (
+                        <div className="bg-gray-50/80 py-1">
+                          {subcategories.map(
+                            (
+                              subcategory,
+                            ) => {
+                              const subcategorySlug =
+                                getCategorySlug(
+                                  subcategory,
+                                );
+
+                              const subcategoryHref =
+                                `/category/${subcategorySlug}`;
+
+                              const isChildActive =
+                                isPathActive(
+                                  pathname,
+                                  subcategoryHref,
+                                );
+
+                              return (
+                                <Link
+                                  key={
+                                    subcategory._id ||
+                                    subcategorySlug
+                                  }
+                                  href={
+                                    subcategoryHref
+                                  }
+                                  onClick={
+                                    onClose
+                                  }
+                                  className={`
+                                    flex
+                                    w-full
+                                    items-center
+                                    justify-between
+                                    py-3
+                                    pl-10
+                                    pr-6
+                                    text-sm
+                                    font-semibold
+                                    transition-colors
+
+                                    ${
+                                      isChildActive
+                                        ? "bg-orange-50 text-[#FF6900]"
+                                        : "text-gray-600 hover:bg-orange-50 hover:text-[#FF6900]"
+                                    }
+                                  `}
+                                >
+                                  <span className="flex min-w-0 items-center gap-2">
+                                    <span
+                                      aria-hidden="true"
+                                      className="shrink-0 text-[#FF6900]"
+                                    >
+                                      ↳
+                                    </span>
+
+                                    <span className="truncate">
+                                      {
+                                        subcategory.name
+                                      }
+                                    </span>
+                                  </span>
+
+                                  <ChevronRight
+                                    size={15}
+                                    className="shrink-0"
+                                  />
+                                </Link>
+                              );
+                            },
+                          )}
+                        </div>
+                      )}
+                    </div>
                   );
                 },
               )
