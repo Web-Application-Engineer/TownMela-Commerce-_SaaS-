@@ -14,6 +14,10 @@ import {
 } from "@/src/context/CartDrawerContext";
 
 import {
+  StorefrontTenantProvider,
+} from "@/src/context/StorefrontTenantContext";
+
+import {
   HeaderSettingsProvider,
 } from "@/src/context/HeaderSettingsContext";
 
@@ -82,13 +86,15 @@ export default function RootLayout({
     >
       <body>
         <CartDrawerProvider>
-          <HeaderSettingsProvider>
-            <FooterSettingsProvider>
-              <SiteShell>
-                {children}
-              </SiteShell>
-            </FooterSettingsProvider>
-          </HeaderSettingsProvider>
+          <StorefrontTenantProvider>
+            <HeaderSettingsProvider>
+              <FooterSettingsProvider>
+                <SiteShell>
+                  {children}
+                </SiteShell>
+              </FooterSettingsProvider>
+            </HeaderSettingsProvider>
+          </StorefrontTenantProvider>
         </CartDrawerProvider>
       </body>
     </html>

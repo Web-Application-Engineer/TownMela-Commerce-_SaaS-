@@ -223,6 +223,7 @@ const copyMasterTemplateToTenant =
       homepageBanners: 0,
       homepageCategoryShowcases: 0,
       popularCategories: 0,
+      footerContentPages: 0,
     };
 
     try {
@@ -349,6 +350,74 @@ const copyMasterTemplateToTenant =
 
       logCopyStep(
         "Branding defaults copied"
+      );
+
+      /* =====================================================
+         COPY FOOTER MANAGEMENT CONTENT PAGES
+
+         These are tenant-owned content pages. A new tenant
+         receives an independent snapshot of the master
+         TownMela content at provisioning time.
+
+         Customer Info:
+         - About Us
+         - Contact Us
+         - Privacy Policy
+         - Terms & Conditions
+         - Return & Refund Policy
+
+         Quick Navigation:
+         - Customer Support
+
+         Functional pages such as Cart, Checkout,
+         My Account and Track Orders are intentionally
+         NOT copied or modified here.
+      ===================================================== */
+
+      currentStage =
+        "copy_footer_content_pages";
+
+      destinationTenant.aboutPage =
+        toPlainObject(
+          masterTenant.aboutPage
+        );
+
+      destinationTenant.contactPage =
+        toPlainObject(
+          masterTenant.contactPage
+        );
+
+      destinationTenant.privacyPolicyPage =
+        toPlainObject(
+          masterTenant.privacyPolicyPage
+        );
+
+      destinationTenant.termsConditionsPage =
+        toPlainObject(
+          masterTenant.termsConditionsPage
+        );
+
+      destinationTenant.returnRefundPage =
+        toPlainObject(
+          masterTenant.returnRefundPage
+        );
+
+      destinationTenant.customerSupportPage =
+        toPlainObject(
+          masterTenant.customerSupportPage
+        );
+
+      await destinationTenant.save();
+
+      copySummary.footerContentPages =
+        6;
+
+      logCopyStep(
+        "Footer content pages copied",
+        {
+          count:
+            copySummary.footerContentPages,
+        }
       );
 
       /* =====================================================

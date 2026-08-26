@@ -8,6 +8,10 @@ import {
   useState,
 } from "react";
 
+import {
+  useStorefrontTenant,
+} from "@/src/context/StorefrontTenantContext";
+
 /* =========================================================
    API
 ========================================================= */
@@ -15,10 +19,6 @@ import {
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ??
   "http://localhost:5000";
-
-const TENANT_ID =
-  process.env.NEXT_PUBLIC_TENANT_ID ??
-  "";
 
 /* =========================================================
    TYPES
@@ -95,6 +95,43 @@ type FooterSettingsContextValue = {
 };
 
 /* =========================================================
+   QUICK NAVIGATION LEGACY ROUTE NORMALIZER
+
+   Older saved footer settings may contain /support.
+   The actual storefront page is /customer-support.
+========================================================= */
+
+function normalizeQuickNavigationLinks(
+  links: FooterLink[],
+): FooterLink[] {
+  return links.map((link) => {
+    const normalizedUrl =
+      String(link.url || "")
+        .trim()
+        .toLowerCase();
+
+    const normalizedLabel =
+      String(link.label || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+
+    if (
+      normalizedUrl === "/support" ||
+      normalizedLabel === "support" ||
+      normalizedLabel === "customer support"
+    ) {
+      return {
+        ...link,
+        url: "/customer-support",
+      };
+    }
+
+    return link;
+  });
+}
+
+/* =========================================================
    DEFAULTS
 ========================================================= */
 
@@ -156,7 +193,7 @@ const defaultFooterSettings: FooterSettings = {
     { label: "Cart", url: "/cart", enabled: true, order: 2 },
     { label: "Checkout", url: "/checkout", enabled: true, order: 3 },
     { label: "My Account", url: "/my-account", enabled: true, order: 4 },
-    { label: "Customer Complaint", url: "/customer-complaint", enabled: true, order: 5 },
+    { label: "Customer Support", url: "/customer-support", enabled: true, order: 5 },
   ],
 
   showQuickNavigation: true,
@@ -196,6 +233,13 @@ export function FooterSettingsProvider({
 }: {
   children: React.ReactNode;
 }) {
+  const {
+    tenantId,
+    isLoading:
+      isTenantLoading,
+  } =
+    useStorefrontTenant();
+
   const [
     settings,
     setSettings,
@@ -212,6 +256,20 @@ export function FooterSettingsProvider({
 
   const refreshFooterSettings =
     useCallback(async () => {
+      if (isTenantLoading) {
+        return;
+      }
+
+      if (!tenantId) {
+        setSettings(
+          defaultFooterSettings,
+        );
+
+        setIsLoading(false);
+
+        return;
+      }
+
       try {
         setIsLoading(true);
 
@@ -225,12 +283,8 @@ export function FooterSettingsProvider({
                 Accept:
                   "application/json",
 
-                ...(TENANT_ID
-                  ? {
-                      "X-Tenant-Id":
-                        TENANT_ID,
-                    }
-                  : {}),
+                "X-Tenant-Id":
+                  tenantId,
               },
 
               cache:
@@ -291,7 +345,9 @@ export function FooterSettingsProvider({
             Array.isArray(
               data.quickNavigationLinks,
             )
-              ? data.quickNavigationLinks
+              ? normalizeQuickNavigationLinks(
+                  data.quickNavigationLinks,
+                )
               : defaultFooterSettings
                   .quickNavigationLinks,
 
@@ -314,7 +370,10 @@ export function FooterSettingsProvider({
       } finally {
         setIsLoading(false);
       }
-    }, []);
+    }, [
+      isTenantLoading,
+      tenantId,
+    ]);
 
   useEffect(() => {
     void refreshFooterSettings();

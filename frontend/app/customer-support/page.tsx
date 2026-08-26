@@ -1,12 +1,18 @@
 "use client";
 
+import Link from "next/link";
 import {
   useEffect,
   useMemo,
   useState,
+  type ReactNode,
 } from "react";
 
 import RelatedProductsCarousel from "@/src/components/Products/RelatedProductsCarousel";
+
+import {
+  useFooterSettings,
+} from "@/src/context/FooterSettingsContext";
 
 import {
   useStorefrontTenant,
@@ -68,25 +74,32 @@ type ContentPageResponse = {
   };
 };
 
+type SupportContactItem = {
+  label: string;
+  value: string;
+  href: string;
+  icon: ReactNode;
+};
+
 /* =========================================================
    FALLBACK
 ========================================================= */
 
-const fallbackPrivacyPage: SimpleContentPage = {
-  menuTitle: "Privacy Policy",
+const fallbackCustomerSupportPage: SimpleContentPage = {
+  menuTitle: "Customer Support",
 
-  pageTitle: "Privacy Policy",
+  pageTitle: "Customer Support",
 
   subtitle:
-    "This page explains the general types of information that may be collected when customers use the store and how that information may be used.",
+    "Need help with a product, order, delivery, payment, return or refund? Find the right support option here.",
 
   banner: {
     image: "",
-    altText: "Privacy Policy",
+    altText: "Customer Support",
   },
 
   content:
-    "Information We May Collect\nInformation may include customer name, phone number, email address, delivery address, order details and other information provided during checkout or customer support.\n\nHow Information May Be Used\nCustomer information may be used to process orders, arrange delivery, provide support, prevent misuse and improve the shopping experience.\n\nService Providers\nRelevant information may be shared with service providers such as delivery or payment partners when necessary to complete an order or provide requested services.\n\nData Security\nReasonable measures should be used to protect customer information. However, no online system can guarantee absolute security.\n\nPolicy Updates\nThis policy may be updated when store practices, features or legal requirements change.",
+    "How We Can Help\nOur support team can assist with product information, order confirmation, delivery updates, payment questions and general store enquiries.\n\nOrder Support\nPlease keep your order number and the phone number used during checkout available when requesting help with an existing order.\n\nReturns & Refunds\nFor return, replacement or refund requests, review the Return & Refund Policy and contact the store with your order details and a clear description of the issue.\n\nResponse Information\nResponse times may vary depending on business hours, order volume and the type of support requested.",
 
   seo: {
     metaTitle: "",
@@ -99,21 +112,19 @@ const fallbackPrivacyPage: SimpleContentPage = {
 ========================================================= */
 
 function normalizePage(
-  page?:
-    | Partial<SimpleContentPage>
-    | null,
+  page?: Partial<SimpleContentPage> | null,
 ): SimpleContentPage {
   return {
-    ...fallbackPrivacyPage,
+    ...fallbackCustomerSupportPage,
     ...(page ?? {}),
 
     banner: {
-      ...fallbackPrivacyPage.banner,
+      ...fallbackCustomerSupportPage.banner,
       ...(page?.banner ?? {}),
     },
 
     seo: {
-      ...fallbackPrivacyPage.seo,
+      ...fallbackCustomerSupportPage.seo,
       ...(page?.seo ?? {}),
     },
   };
@@ -127,17 +138,47 @@ function hasText(
   );
 }
 
+function getTelHref(
+  value: string,
+) {
+  const normalized =
+    value
+      .trim()
+      .replace(/[^\d+]/g, "");
+
+  return normalized
+    ? `tel:${normalized}`
+    : "#";
+}
+
+function getMailHref(
+  value: string,
+) {
+  const normalized =
+    value.trim();
+
+  return normalized
+    ? `mailto:${normalized}`
+    : "#";
+}
+
 /* =========================================================
    PAGE
 ========================================================= */
 
-export default function PrivacyPolicyPage() {
+export default function CustomerSupportPage() {
   const {
     tenantId,
     isLoading:
       isTenantLoading,
   } =
     useStorefrontTenant();
+
+  const {
+    settings:
+      footerSettings,
+  } =
+    useFooterSettings();
 
   const [
     cmsPage,
@@ -160,7 +201,7 @@ export default function PrivacyPolicyPage() {
     useState<Product[]>([]);
 
   /* =======================================================
-     LOAD CONTACT PAGE
+     LOAD CUSTOMER SUPPORT PAGE
   ======================================================= */
 
   useEffect(() => {
@@ -184,7 +225,7 @@ export default function PrivacyPolicyPage() {
 
           const response =
             await fetch(
-              `${API_BASE_URL}/api/tenants/footer-pages/public/privacy-policy`,
+              `${API_BASE_URL}/api/tenants/footer-pages/public/customer-support`,
               {
                 method: "GET",
 
@@ -219,7 +260,7 @@ export default function PrivacyPolicyPage() {
           ) {
             throw new Error(
               payload?.message ||
-                "Failed to load Privacy Policy page.",
+                "Failed to load Customer Support page.",
             );
           }
 
@@ -239,7 +280,7 @@ export default function PrivacyPolicyPage() {
           }
 
           console.error(
-            "Privacy Policy page load error:",
+            "Customer Support page load error:",
             error,
           );
 
@@ -512,7 +553,7 @@ export default function PrivacyPolicyPage() {
           }
 
           console.error(
-            "Privacy Policy offer products loading error:",
+            "Customer Support offer products loading error:",
             error,
           );
 
@@ -543,7 +584,7 @@ export default function PrivacyPolicyPage() {
     useMemo(
       () =>
         cmsPage ??
-        fallbackPrivacyPage,
+        fallbackCustomerSupportPage,
       [
         cmsPage,
       ],
@@ -644,6 +685,78 @@ export default function PrivacyPolicyPage() {
     page.seo.metaDescription,
   ]);
 
+  const supportContacts =
+    [
+      footerSettings.phone
+        ? {
+            label:
+              "Call Us",
+            value:
+              footerSettings.phone,
+            href:
+              getTelHref(
+                footerSettings.phone,
+              ),
+            icon: (
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                className="h-5 w-5"
+                aria-hidden="true"
+              >
+                <path
+                  d="M5 4h3l2 5-2 1.5a15 15 0 0 0 5.5 5.5L15 14l5 2v3a2 2 0 0 1-2 2C10.3 21 3 13.7 3 6a2 2 0 0 1 2-2Z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            ),
+          }
+        : null,
+
+      footerSettings.email
+        ? {
+            label:
+              "Email Us",
+            value:
+              footerSettings.email,
+            href:
+              getMailHref(
+                footerSettings.email,
+              ),
+            icon: (
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                className="h-5 w-5"
+                aria-hidden="true"
+              >
+                <rect
+                  x="3"
+                  y="5"
+                  width="18"
+                  height="14"
+                  rx="2"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+                <path
+                  d="m4 7 8 6 8-6"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            ),
+          }
+        : null,
+    ].filter(
+      Boolean,
+    ) as SupportContactItem[];
+
   /* =======================================================
      LOADING
   ======================================================= */
@@ -657,8 +770,10 @@ export default function PrivacyPolicyPage() {
         <section className="bg-[#0B1F3A]">
           <div className="mx-auto w-full max-w-[1200px] px-4 py-16 sm:px-6 sm:py-20 lg:px-8 lg:py-24">
             <div className="max-w-3xl animate-pulse">
-              <div className="h-8 w-36 rounded-full bg-white/10" />
+              <div className="h-8 w-40 rounded-full bg-white/10" />
+
               <div className="mt-6 h-14 max-w-xl rounded-xl bg-white/10" />
+
               <div className="mt-5 h-16 max-w-2xl rounded-xl bg-white/10" />
             </div>
           </div>
@@ -702,7 +817,7 @@ export default function PrivacyPolicyPage() {
               <span className="h-2 w-2 rounded-full bg-[#FF6900]" />
 
               <span className="text-xs font-extrabold uppercase tracking-[0.16em] text-[#E85F00]/90 sm:text-sm">
-                Customer Info
+                Quick Navigation
               </span>
             </div>
 
@@ -729,108 +844,177 @@ export default function PrivacyPolicyPage() {
         </div>
       </section>
 
-      {/* ================= CONTENT ================= */}
+      {/* ================= SUPPORT OPTIONS ================= */}
       <section className="bg-[#F8FAFC]">
         <div className="mx-auto w-full max-w-[1200px] px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
-          <div className="grid gap-7 lg:grid-cols-[0.86fr_1.14fr]">
-            <aside className="lg:sticky lg:top-28 lg:self-start">
-              <div className="rounded-[24px] bg-[#0B1F3A] p-6 sm:p-8">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FF6900] text-white">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    className="h-6 w-6"
-                    aria-hidden="true"
-                  >
-                    <rect
-                      x="5"
-                      y="10"
-                      width="14"
-                      height="10"
-                      rx="2"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                    />
-                    <path
-                      d="M8 10V7a4 4 0 0 1 8 0v3"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d="M12 14v2"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </div>
-
-                <p className="mt-6 text-xs font-extrabold uppercase tracking-[0.18em] text-orange-300">
-                  Privacy & Data
-                </p>
-
-                <h2 className="mt-3 text-2xl font-black leading-tight text-white sm:text-3xl">
-                  Clear information about how customer data may be handled.
-                </h2>
-
-                <p className="mt-4 text-sm leading-7 text-slate-300">
-                  Please review this policy together with the information shown
-                  during checkout, order processing and customer support.
-                </p>
-              </div>
-            </aside>
-
+          <div className="grid gap-7 lg:grid-cols-[1.1fr_0.9fr]">
             <article className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:p-10">
-              <div className="flex items-center gap-3 border-b border-slate-200 pb-5">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-[#FF6900]">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    className="h-5 w-5"
-                    aria-hidden="true"
-                  >
-                    <path
-                      d="M7 3h7l4 4v14H7V3Z"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M14 3v5h5M10 12h5M10 16h5"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </div>
-
-                <div>
-                  <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#FF6900]">
-                    Policy Details
-                  </p>
-
-                  <h2 className="mt-1 text-xl font-black text-[#0B1F3A] sm:text-2xl">
-                    {page.pageTitle}
-                  </h2>
-                </div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-[#FF6900]">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  className="h-6 w-6"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M4 5h16v11H8l-4 3V5Z"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M8 9h8M8 12h5"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  />
+                </svg>
               </div>
+
+              <p className="mt-6 text-xs font-extrabold uppercase tracking-[0.16em] text-[#FF6900]">
+                Support Information
+              </p>
+
+              <h2 className="mt-2 text-2xl font-black tracking-tight text-[#0B1F3A] sm:text-3xl">
+                How can we help?
+              </h2>
 
               {hasText(
                 page.content,
               ) ? (
-                <div className="mt-7 whitespace-pre-line text-sm leading-8 text-slate-600 sm:text-base">
+                <div className="mt-5 whitespace-pre-line text-sm leading-8 text-slate-600 sm:text-base">
                   {
                     page.content
                   }
                 </div>
               ) : (
-                <p className="mt-7 text-sm leading-8 text-slate-500 sm:text-base">
-                  Privacy policy content will appear here after it is added from
-                  Footer Management.
+                <p className="mt-5 text-sm leading-8 text-slate-500 sm:text-base">
+                  Customer support information will appear here after it is added
+                  from Footer Management.
                 </p>
               )}
             </article>
+
+            <aside className="space-y-5">
+              <div className="rounded-[24px] bg-[#0B1F3A] p-6 sm:p-8">
+                <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-orange-300">
+                  Contact Support
+                </p>
+
+                <h2 className="mt-3 text-2xl font-black text-white">
+                  Need direct assistance?
+                </h2>
+
+                <p className="mt-4 text-sm leading-7 text-slate-300">
+                  Use the store contact information below for product, order,
+                  delivery or payment support.
+                </p>
+
+                {supportContacts.length >
+                0 ? (
+                  <div className="mt-6 space-y-3">
+                    {supportContacts.map(
+                      (item) => (
+                        <a
+                          key={
+                            item.label
+                          }
+                          href={
+                            item.href
+                          }
+                          className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition hover:bg-white/[0.08]"
+                        >
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-orange-300">
+                            {
+                              item.icon
+                            }
+                          </div>
+
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
+                              {
+                                item.label
+                              }
+                            </p>
+
+                            <p className="mt-1 break-words text-sm font-semibold leading-6 text-white">
+                              {
+                                item.value
+                              }
+                            </p>
+                          </div>
+                        </a>
+                      ),
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-5 text-sm leading-7 text-slate-300">
+                    Store phone and email will appear here after they are added
+                    from Footer Management.
+                  </p>
+                )}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                <Link
+                  href="/order-tracking"
+                  className="group flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-orange-200 hover:shadow-md"
+                >
+                  <div>
+                    <p className="text-sm font-black text-[#0B1F3A]">
+                      Track Your Order
+                    </p>
+
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      Check your current order status.
+                    </p>
+                  </div>
+
+                  <span className="ml-4 text-xl text-[#FF6900] transition group-hover:translate-x-1">
+                    →
+                  </span>
+                </Link>
+
+                <Link
+                  href="/return-refund-policy"
+                  className="group flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-orange-200 hover:shadow-md"
+                >
+                  <div>
+                    <p className="text-sm font-black text-[#0B1F3A]">
+                      Returns & Refunds
+                    </p>
+
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      Review the return and refund process.
+                    </p>
+                  </div>
+
+                  <span className="ml-4 text-xl text-[#FF6900] transition group-hover:translate-x-1">
+                    →
+                  </span>
+                </Link>
+
+                <Link
+                  href="/contact-us"
+                  className="group flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-orange-200 hover:shadow-md sm:col-span-2 lg:col-span-1"
+                >
+                  <div>
+                    <p className="text-sm font-black text-[#0B1F3A]">
+                      Contact Us
+                    </p>
+
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      View full store contact details.
+                    </p>
+                  </div>
+
+                  <span className="ml-4 text-xl text-[#FF6900] transition group-hover:translate-x-1">
+                    →
+                  </span>
+                </Link>
+              </div>
+            </aside>
           </div>
         </div>
       </section>

@@ -23,6 +23,8 @@ import {
   useTenant,
 } from "@/src/context/TenantContext";
 
+import FooterContentPagesEditor from "./FooterContentPagesEditor";
+
 /* =========================================================
    API
 ========================================================= */
@@ -198,7 +200,7 @@ const defaultFooterSettings: FooterSettings = {
     { label: "Cart", url: "/cart", enabled: true, order: 2 },
     { label: "Checkout", url: "/checkout", enabled: true, order: 3 },
     { label: "My Account", url: "/my-account", enabled: true, order: 4 },
-    { label: "Customer Complaint", url: "/customer-complaint", enabled: true, order: 5 },
+    { label: "Customer Support", url: "/customer-support", enabled: true, order: 5 },
   ],
 
   showQuickNavigation: true,
@@ -337,6 +339,8 @@ function createFooterMenuUrl(
         "/my-account",
       "customer complaint":
         "/customer-complaint",
+      "customer support":
+        "/customer-support",
     };
 
   if (!normalizedLabel) {
@@ -377,6 +381,47 @@ function createFooterMenuUrl(
 /* =========================================================
    FOOTER MANAGEMENT CLIENT
 ========================================================= */
+
+
+function normalizeQuickNavigationLinks(
+  links: FooterLink[],
+): FooterLink[] {
+  return links.map((link) => {
+    const normalizedLabel =
+      String(link.label || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+
+    const normalizedUrl =
+      String(link.url || "")
+        .trim()
+        .toLowerCase();
+
+    if (
+      normalizedLabel === "support" ||
+      normalizedUrl === "/support"
+    ) {
+      return {
+        ...link,
+        label: "Customer Support",
+        url: "/customer-support",
+      };
+    }
+
+    if (
+      normalizedLabel ===
+      "customer support"
+    ) {
+      return {
+        ...link,
+        url: "/customer-support",
+      };
+    }
+
+    return link;
+  });
+}
 
 export default function FooterManagementClient() {
   const {
@@ -783,7 +828,9 @@ export default function FooterManagementClient() {
             Array.isArray(
               data.quickNavigationLinks,
             )
-              ? data.quickNavigationLinks
+              ? normalizeQuickNavigationLinks(
+                  data.quickNavigationLinks,
+                )
               : defaultFooterSettings
                   .quickNavigationLinks,
         });
@@ -1365,8 +1412,10 @@ export default function FooterManagementClient() {
                 payload.data
                   ?.quickNavigationLinks,
               )
-                ? payload.data
-                    .quickNavigationLinks
+                ? normalizeQuickNavigationLinks(
+                    payload.data
+                      .quickNavigationLinks,
+                  )
                 : current
                     .quickNavigationLinks,
           }),
@@ -2336,6 +2385,12 @@ export default function FooterManagementClient() {
           </button>
         </div>
       </section>
+
+      {/* ===================================================
+          STOREFRONT CONTENT PAGES
+      =================================================== */}
+
+      <FooterContentPagesEditor />
     </div>
   );
 }

@@ -1,12 +1,18 @@
 const express = require("express");
 
 const tenantController = require("../controllers/tenantController");
+const footerPageController = require("../controllers/footerPageController");
 
 const {
   protect,
   adminOnly,
   allowRoles,
+  requireTenant,
 } = require("../middleware/authMiddleware");
+
+const resolvePublicTenant = require(
+  "../middleware/resolvePublicTenant"
+);
 
 const router = express.Router();
 
@@ -28,6 +34,32 @@ router.get(
 );
 
 /* =====================================================
+   PUBLIC STOREFRONT CONTENT PAGE
+===================================================== */
+
+/**
+ * GET /api/tenants/footer-pages/public/:pageKey
+ *
+ * Supported pageKey values:
+ * - about-us
+ * - contact-us
+ * - privacy-policy
+ * - terms-and-conditions
+ * - return-refund-policy
+ * - customer-support
+ *
+ * resolvePublicTenant supports:
+ * - X-Tenant-Id
+ * - custom request domain
+ * - localhost default tenant
+ */
+router.get(
+  "/footer-pages/public/:pageKey",
+  resolvePublicTenant,
+  footerPageController.getPublicFooterPage
+);
+
+/* =====================================================
    PROTECTED TENANT MANAGEMENT
 ===================================================== */
 
@@ -38,6 +70,42 @@ router.get(
  * Existing tenant-management protection is preserved.
  */
 router.use(protect, adminOnly);
+
+/* =====================================================
+   FOOTER MANAGEMENT
+===================================================== */
+
+/**
+ * GET /api/tenants/footer-pages
+ *
+ * Tenant Admin:
+ * - Uses the tenant from the authenticated account.
+ *
+ * Super Admin:
+ * - Uses the selected tenant from X-Tenant-Id.
+ */
+router.get(
+  "/footer-pages",
+  requireTenant,
+  footerPageController.getFooterPages
+);
+
+/**
+ * PATCH /api/tenants/footer-pages/:pageKey
+ *
+ * Supported pageKey values:
+ * - about-us
+ * - contact-us
+ * - privacy-policy
+ * - terms-and-conditions
+ * - return-refund-policy
+ * - customer-support
+ */
+router.patch(
+  "/footer-pages/:pageKey",
+  requireTenant,
+  footerPageController.updateFooterPage
+);
 
 /* =====================================================
    EXPIRED SUBSCRIPTION PROCESSING
