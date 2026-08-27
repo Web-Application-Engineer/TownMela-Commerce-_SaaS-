@@ -8,6 +8,7 @@ import {
   ImageIcon,
   LoaderCircle,
   Pencil,
+  Plus,
   Save,
   Trash2,
   X,
@@ -45,6 +46,10 @@ type CategoryShowcaseManagementProps = {
   onUpdateCategoryShowcase: (
     updatedShowcase: CategoryShowcase,
   ) => void | Promise<void>;
+  onAddCategoryShowcase: () => void | Promise<void>;
+  onDeleteCategoryShowcase: (
+    showcase: CategoryShowcase,
+  ) => void | Promise<void>;
 };
 
 /* =========================================================
@@ -57,6 +62,8 @@ export default function CategoryShowcaseManagement({
   isSaving = false,
   errorMessage = "",
   onUpdateCategoryShowcase,
+  onAddCategoryShowcase,
+  onDeleteCategoryShowcase,
 }: CategoryShowcaseManagementProps) {
   const [editingPosition, setEditingPosition] = useState<{
     showcaseId: CategoryShowcase["id"];
@@ -263,6 +270,23 @@ export default function CategoryShowcaseManagement({
   };
 
   /* =======================================================
+     SHOWCASE STATUS
+  ======================================================= */
+
+  const handleToggleShowcaseStatus = async (
+    showcase: CategoryShowcase,
+  ) => {
+    if (isSaving) {
+      return;
+    }
+
+    await onUpdateCategoryShowcase({
+      ...showcase,
+      active: showcase.active === false,
+    });
+  };
+
+  /* =======================================================
      COMPONENT UI
   ======================================================= */
 
@@ -286,9 +310,32 @@ export default function CategoryShowcaseManagement({
           </div>
         </div>
 
-        <span className="w-fit rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-bold text-[#FF6900]">
-          {categoryShowcases.length} {categoryShowcases.length === 1 ? "Showcase" : "Showcases"}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="w-fit rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-bold text-[#FF6900]">
+            {categoryShowcases.length}{" "}
+            {categoryShowcases.length === 1 ? "Showcase" : "Showcases"}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => {
+              void onAddCategoryShowcase();
+            }}
+            disabled={isSaving}
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[#0B1F3A] px-4 text-xs font-black text-white transition hover:bg-[#132d50] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isSaving ? (
+              <LoaderCircle
+                size={15}
+                className="animate-spin"
+                aria-hidden="true"
+              />
+            ) : (
+              <Plus size={15} aria-hidden="true" />
+            )}
+            Add Showcase
+          </button>
+        </div>
       </div>
 
       {errorMessage && (
@@ -324,6 +371,40 @@ export default function CategoryShowcaseManagement({
                 <p className="mt-1 max-w-xl text-sm leading-6 text-gray-500">
                   {showcase.description}
                 </p>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleToggleShowcaseStatus(showcase);
+                    }}
+                    disabled={isSaving}
+                    className={`inline-flex min-h-9 items-center justify-center rounded-lg border px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                      showcase.active !== false
+                        ? "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
+                        : "border-gray-200 bg-gray-100 text-gray-500 hover:bg-gray-200"
+                    }`}
+                  >
+                    {showcase.active !== false ? "Active" : "Inactive"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void onDeleteCategoryShowcase(showcase);
+                    }}
+                    disabled={isSaving || categoryShowcases.length <= 1}
+                    className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    title={
+                      categoryShowcases.length <= 1
+                        ? "At least one category showcase must remain."
+                        : "Delete this category showcase"
+                    }
+                  >
+                    <Trash2 size={14} aria-hidden="true" />
+                    Delete Showcase
+                  </button>
+                </div>
 
                 <div className="mt-4 rounded-xl border border-orange-100 bg-orange-50/50 p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

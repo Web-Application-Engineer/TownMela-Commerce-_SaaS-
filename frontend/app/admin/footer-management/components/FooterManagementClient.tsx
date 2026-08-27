@@ -34,7 +34,7 @@ const API_BASE_URL =
   "http://localhost:5000";
 
 const DIGITAL_PLATFORM_LABEL =
-  "Explore Your Digital Presence";
+  "Explore Digital Presence";
 
 const DIGITAL_PLATFORM_URL =
   "https://www.sreste.com";

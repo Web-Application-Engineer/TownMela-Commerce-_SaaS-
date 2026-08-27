@@ -27,6 +27,134 @@ const PopularCategory = require(
   "../../models/PopularCategory"
 );
 
+/*
+ * Footer settings already exist in the project, but older
+ * project snapshots used slightly different filename casing.
+ *
+ * Resolve the existing Mongoose model safely at runtime so
+ * this provisioning service does not create a second model
+ * or duplicate footer-settings schema.
+ */
+const FOOTER_SETTING_MODEL_CANDIDATES = [
+  "../../models/FooterSetting",
+  "../../models/footerSetting",
+  "../../models/FooterSettings",
+  "../../models/footerSettings",
+  "../../models/FooterSettingModel",
+  "../../models/footerSettingModel",
+];
+
+const findRegisteredFooterSettingModel =
+  () =>
+    Object.values(
+      mongoose.models
+    ).find((model) => {
+      const modelName =
+        String(
+          model?.modelName || ""
+        );
+
+      const hasTenantPath =
+        Boolean(
+          model?.schema?.path(
+            "tenant"
+          ) ||
+            model?.schema?.path(
+              "tenantId"
+            )
+        );
+
+      return (
+        /footer.*setting/i.test(
+          modelName
+        ) &&
+        hasTenantPath
+      );
+    }) || null;
+
+const resolveFooterSettingModel = (
+  {
+    required = true,
+  } = {}
+) => {
+  const registeredModel =
+    findRegisteredFooterSettingModel();
+
+  if (registeredModel) {
+    return registeredModel;
+  }
+
+  for (
+    const candidate of
+    FOOTER_SETTING_MODEL_CANDIDATES
+  ) {
+    try {
+      const candidateModel =
+        require(candidate);
+
+      if (
+        candidateModel &&
+        typeof candidateModel.findOne ===
+          "function" &&
+        candidateModel.schema
+      ) {
+        return candidateModel;
+      }
+    } catch (error) {
+      const isMissingCandidate =
+        error?.code ===
+          "MODULE_NOT_FOUND" &&
+        String(
+          error?.message || ""
+        ).includes(candidate);
+
+      if (!isMissingCandidate) {
+        throw error;
+      }
+    }
+  }
+
+  const modelAfterRequires =
+    findRegisteredFooterSettingModel();
+
+  if (modelAfterRequires) {
+    return modelAfterRequires;
+  }
+
+  if (!required) {
+    return null;
+  }
+
+  throw createProvisioningError(
+    "Footer settings model could not be resolved",
+    "FOOTER_SETTING_MODEL_NOT_FOUND"
+  );
+};
+
+const getFooterSettingTenantField =
+  (FooterSetting) => {
+    if (
+      FooterSetting?.schema?.path(
+        "tenant"
+      )
+    ) {
+      return "tenant";
+    }
+
+    if (
+      FooterSetting?.schema?.path(
+        "tenantId"
+      )
+    ) {
+      return "tenantId";
+    }
+
+    throw createProvisioningError(
+      "Footer settings model does not contain a tenant field",
+      "FOOTER_SETTING_TENANT_FIELD_NOT_FOUND"
+    );
+  };
+
 /* =========================================================
    CONFIGURATION
 ========================================================= */
@@ -224,6 +352,7 @@ const copyMasterTemplateToTenant =
       homepageCategoryShowcases: 0,
       popularCategories: 0,
       footerContentPages: 0,
+      footerSettings: 0,
     };
 
     try {
@@ -369,9 +498,9 @@ const copyMasterTemplateToTenant =
          Quick Navigation:
          - Customer Support
 
-         Functional pages such as Cart, Checkout,
-         My Account and Track Orders are intentionally
-         NOT copied or modified here.
+         Functional pages such as Cart, Checkout and
+         Track Orders are intentionally NOT copied or
+         modified here.
       ===================================================== */
 
       currentStage =
@@ -419,6 +548,108 @@ const copyMasterTemplateToTenant =
             copySummary.footerContentPages,
         }
       );
+
+      /* =====================================================
+         COPY FOOTER SETTINGS + FOOTER MENUS
+
+         This copies the complete saved footer-settings
+         document from the master tenant as a one-time
+         snapshot for the new tenant.
+
+         That includes the settings already supported by the
+         existing FooterSetting model, such as:
+         - logo / description / contact information
+         - social links and WhatsApp additionalSocialLinks
+         - background image
+         - Popular Category menu
+         - Customer Information menu
+         - Quick Navigation menu
+         - Digital Presence link and its enabled state
+         - Google Map settings
+         - copyright / active state
+         - any future footer fields already present in the
+           same FooterSetting schema/document
+
+         No live relationship is created with the master.
+      ===================================================== */
+
+      currentStage =
+        "copy_footer_settings";
+
+      const FooterSetting =
+        resolveFooterSettingModel();
+
+      const footerTenantField =
+        getFooterSettingTenantField(
+          FooterSetting
+        );
+
+      const masterFooterSetting =
+        await FooterSetting.findOne({
+          [footerTenantField]:
+            masterTenantId,
+        }).lean();
+
+      if (masterFooterSetting) {
+        const footerSnapshot =
+          removeDocumentFields(
+            masterFooterSetting
+          );
+
+        /*
+         * removeDocumentFields() removes "tenant".
+         * Also remove whichever tenant field the existing
+         * FooterSetting model actually uses.
+         */
+        delete footerSnapshot[
+          footerTenantField
+        ];
+
+        /*
+         * Do not carry master-admin audit ownership into the
+         * new tenant. These are metadata, not footer content.
+         */
+        delete footerSnapshot.createdBy;
+        delete footerSnapshot.updatedBy;
+        delete footerSnapshot.lastModifiedBy;
+
+        await FooterSetting.findOneAndUpdate(
+          {
+            [footerTenantField]:
+              newTenantId,
+          },
+          {
+            $set: {
+              ...footerSnapshot,
+
+              [footerTenantField]:
+                newTenantId,
+            },
+          },
+          {
+            new: true,
+            upsert: true,
+            runValidators: true,
+            setDefaultsOnInsert:
+              true,
+          }
+        );
+
+        copySummary.footerSettings =
+          1;
+
+        logCopyStep(
+          "Footer settings copied",
+          {
+            count:
+              copySummary.footerSettings,
+          }
+        );
+      } else {
+        logCopyStep(
+          "Master footer settings not found; footer settings copy skipped"
+        );
+      }
 
       /* =====================================================
          COPY CATEGORIES
@@ -926,7 +1157,7 @@ const removeTenantTemplateData =
       return;
     }
 
-    await Promise.all([
+    const cleanupTasks = [
       Product.deleteMany({
         tenant: tenantId,
       }),
@@ -948,7 +1179,42 @@ const removeTenantTemplateData =
       PopularCategory.deleteMany({
         tenant: tenantId,
       }),
-    ]);
+    ];
+
+    /*
+     * FooterSetting is resolved dynamically so rollback also
+     * cleans a copied footer-settings document without making
+     * this helper dependent on a particular filename casing.
+     */
+    try {
+      const FooterSetting =
+        resolveFooterSettingModel({
+          required: false,
+        });
+
+      if (FooterSetting) {
+        const footerTenantField =
+          getFooterSettingTenantField(
+            FooterSetting
+          );
+
+        cleanupTasks.push(
+          FooterSetting.deleteMany({
+            [footerTenantField]:
+              tenantId,
+          })
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Tenant footer settings rollback preparation error:",
+        error
+      );
+    }
+
+    await Promise.all(
+      cleanupTasks
+    );
   };
 
 /* =========================================================

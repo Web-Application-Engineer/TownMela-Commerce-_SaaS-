@@ -1417,29 +1417,97 @@ export default function HomepageManagementClient() {
     ]);
   };
 
-  const handleAddCategoryShowcase = () => {
+  const handleAddCategoryShowcase = async () => {
+    if (isSavingCategoryShowcases) {
+      return;
+    }
+
     const nextOrder = categoryShowcases.length + 1;
     const timestamp = Date.now();
     const key = `showcase-${timestamp}`;
 
-    setCategoryShowcases((currentShowcases) => [
-      ...currentShowcases,
-      {
-        id: `draft-${timestamp}`,
-        key,
-        title: `Homepage Category Showcase ${nextOrder}`,
-        sectionTitle: `New Category Showcase ${nextOrder}`,
-        description:
-          "Manage the three categories displayed in this homepage showcase.",
-        order: nextOrder,
-        layoutOrder: getNextLayoutOrder(
-          productSections,
-          currentShowcases,
-        ),
-        active: true,
-        positions: createEmptyPositions(key),
-      },
-    ]);
+    const newShowcase: CategoryShowcase = {
+      id: `draft-${timestamp}`,
+      key,
+      title: `Homepage Category Showcase ${nextOrder}`,
+      sectionTitle: `New Category Showcase ${nextOrder}`,
+      description:
+        "Manage the three categories displayed in this homepage showcase.",
+      order: nextOrder,
+      layoutOrder: getNextLayoutOrder(
+        productSections,
+        categoryShowcases,
+      ),
+      active: true,
+      positions: createEmptyPositions(key),
+    };
+
+    const nextShowcases = [
+      ...categoryShowcases,
+      newShowcase,
+    ];
+
+    try {
+      setIsSavingCategoryShowcases(true);
+      setCategoryShowcaseError("");
+
+      await saveCategoryShowcases(nextShowcases);
+    } catch (error) {
+      console.error("Failed to add category showcase:", error);
+
+      setCategoryShowcaseError(
+        error instanceof Error
+          ? error.message
+          : "Failed to add homepage category showcase.",
+      );
+    } finally {
+      setIsSavingCategoryShowcases(false);
+    }
+  };
+
+  const handleDeleteCategoryShowcase = async (
+    showcase: CategoryShowcase,
+  ) => {
+    if (isSavingCategoryShowcases) {
+      return;
+    }
+
+    if (categoryShowcases.length <= 1) {
+      window.alert("At least one category showcase must remain.");
+      return;
+    }
+
+    const shouldDelete = window.confirm(
+      `Delete "${showcase.sectionTitle}" from Category Placement Management?`,
+    );
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    const nextShowcases = categoryShowcases
+      .filter((item) => item.key !== showcase.key)
+      .map((item, index) => ({
+        ...item,
+        order: index + 1,
+      }));
+
+    try {
+      setIsSavingCategoryShowcases(true);
+      setCategoryShowcaseError("");
+
+      await saveCategoryShowcases(nextShowcases);
+    } catch (error) {
+      console.error("Failed to delete category showcase:", error);
+
+      setCategoryShowcaseError(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete homepage category showcase.",
+      );
+    } finally {
+      setIsSavingCategoryShowcases(false);
+    }
   };
 
   const handleUpdateProductSection = (
@@ -1754,6 +1822,8 @@ export default function HomepageManagementClient() {
           isSaving={isSavingCategoryShowcases}
           errorMessage={categoryShowcaseError}
           onUpdateCategoryShowcase={handleUpdateCategoryShowcase}
+          onAddCategoryShowcase={handleAddCategoryShowcase}
+          onDeleteCategoryShowcase={handleDeleteCategoryShowcase}
         />
       )}
     </div>
