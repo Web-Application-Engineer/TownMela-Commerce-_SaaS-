@@ -72,6 +72,33 @@ type ContentPageResponse = {
   };
 };
 
+type CheckoutSettingsResponse = {
+  success?: boolean;
+  message?: string;
+
+  data?: {
+    settings?: {
+      whatsappNumber?: string;
+      isActive?: boolean;
+    };
+
+    checkoutSettings?: {
+      whatsappNumber?: string;
+      isActive?: boolean;
+    };
+  };
+
+  settings?: {
+    whatsappNumber?: string;
+    isActive?: boolean;
+  };
+
+  checkoutSettings?: {
+    whatsappNumber?: string;
+    isActive?: boolean;
+  };
+};
+
 /* =========================================================
    FALLBACK
 ========================================================= */
@@ -155,6 +182,37 @@ function getMailHref(
     : "#";
 }
 
+function getWhatsAppHref(
+  value: string,
+) {
+  const digits =
+    value.replace(/\D/g, "");
+
+  return digits
+    ? `https://wa.me/${digits}`
+    : "#";
+}
+
+function getExternalHref(
+  value: string,
+) {
+  const normalized =
+    value.trim();
+
+  if (!normalized) {
+    return "#";
+  }
+
+  if (
+    normalized.startsWith("http://") ||
+    normalized.startsWith("https://")
+  ) {
+    return normalized;
+  }
+
+  return `https://${normalized}`;
+}
+
 /* =========================================================
    PAGE
 ========================================================= */
@@ -192,6 +250,12 @@ export default function ContactUsPage() {
     setOfferProducts,
   ] =
     useState<Product[]>([]);
+
+  const [
+    whatsappNumber,
+    setWhatsappNumber,
+  ] =
+    useState("");
 
   /* =======================================================
      LOAD CONTACT PAGE
@@ -291,6 +355,113 @@ export default function ContactUsPage() {
       };
 
     void loadPage();
+
+    return () => {
+      controller.abort();
+    };
+  }, [
+    isTenantLoading,
+    tenantId,
+  ]);
+
+  /* =======================================================
+     LOAD TENANT-SPECIFIC WHATSAPP
+  ======================================================= */
+
+  useEffect(() => {
+    if (isTenantLoading) {
+      return;
+    }
+
+    if (!tenantId) {
+      setWhatsappNumber("");
+      return;
+    }
+
+    const controller =
+      new AbortController();
+
+    const loadWhatsapp =
+      async () => {
+        try {
+          const response =
+            await fetch(
+              `${API_BASE_URL}/api/checkout-settings`,
+              {
+                method: "GET",
+
+                headers: {
+                  Accept:
+                    "application/json",
+
+                  "X-Tenant-Id":
+                    tenantId,
+                },
+
+                cache:
+                  "no-store",
+
+                signal:
+                  controller.signal,
+              },
+            );
+
+          const payload =
+            (await response
+              .json()
+              .catch(
+                () => null,
+              )) as
+              | CheckoutSettingsResponse
+              | null;
+
+          if (!response.ok) {
+            throw new Error(
+              payload?.message ||
+                "WhatsApp settings could not be loaded.",
+            );
+          }
+
+          const settings =
+            payload?.data?.settings ||
+            payload?.data?.checkoutSettings ||
+            payload?.settings ||
+            payload?.checkoutSettings;
+
+          if (
+            settings?.isActive ===
+            false
+          ) {
+            setWhatsappNumber("");
+            return;
+          }
+
+          setWhatsappNumber(
+            String(
+              settings?.whatsappNumber ||
+                "",
+            ).trim(),
+          );
+        } catch (error) {
+          if (
+            error instanceof
+              DOMException &&
+            error.name ===
+              "AbortError"
+          ) {
+            return;
+          }
+
+          console.warn(
+            "Contact Us WhatsApp loading error:",
+            error,
+          );
+
+          setWhatsappNumber("");
+        }
+      };
+
+    void loadWhatsapp();
 
     return () => {
       controller.abort();
@@ -709,6 +880,44 @@ export default function ContactUsPage() {
           }
         : null,
 
+      whatsappNumber
+        ? {
+            label:
+              "WhatsApp",
+            value:
+              whatsappNumber,
+            href:
+              getWhatsAppHref(
+                whatsappNumber,
+              ),
+            external:
+              true,
+            icon: (
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                className="h-5 w-5"
+                aria-hidden="true"
+              >
+                <path
+                  d="M20 11.5a8 8 0 0 1-11.8 7L4 20l1.5-4A8 8 0 1 1 20 11.5Z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M8.8 8.4c.2-.5.4-.5.7-.5h.5c.2 0 .4.1.5.4l.8 1.8c.1.3.1.5-.1.7l-.6.7c-.2.2-.1.4 0 .6.6 1.1 1.5 2 2.7 2.6.2.1.4.1.6-.1l.8-1c.2-.2.4-.3.7-.2l1.8.8c.3.1.4.3.4.5 0 .5-.2 1.4-.8 1.9-.5.5-1.3.8-2.2.7-1.3-.2-3.2-.8-5.1-2.5-1.5-1.4-2.6-3.1-2.9-4.4-.2-.8 0-1.5.2-2Z"
+                  stroke="currentColor"
+                  strokeWidth="1.35"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            ),
+          }
+        : null,
+
       footerSettings.email
         ? {
             label:
@@ -779,12 +988,52 @@ export default function ContactUsPage() {
             ),
           }
         : null,
+
+      footerSettings.showGoogleMap &&
+      footerSettings.googleMapUrl
+        ? {
+            label:
+              "Google Map",
+            value:
+              footerSettings.googleMapCtaText?.trim() ||
+              "Open Google Map",
+            href:
+              getExternalHref(
+                footerSettings.googleMapUrl,
+              ),
+            external:
+              true,
+            icon: (
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                className="h-5 w-5"
+                aria-hidden="true"
+              >
+                <path
+                  d="M9 18 3 21V6l6-3 6 3 6-3v15l-6 3-6-3Z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M9 3v15M15 6v15"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
+              </svg>
+            ),
+          }
+        : null,
     ].filter(
       Boolean,
     ) as {
       label: string;
       value: string;
       href: string;
+      external?: boolean;
       icon:
         React.ReactNode;
     }[];
@@ -963,6 +1212,16 @@ export default function ContactUsPage() {
                           }
                           href={
                             item.href
+                          }
+                          target={
+                            item.external
+                              ? "_blank"
+                              : undefined
+                          }
+                          rel={
+                            item.external
+                              ? "noopener noreferrer"
+                              : undefined
                           }
                           className="flex items-start gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition hover:bg-white/[0.08]"
                         >

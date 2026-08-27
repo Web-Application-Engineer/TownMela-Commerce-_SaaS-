@@ -79,6 +79,7 @@ type SupportContactItem = {
   value: string;
   href: string;
   icon: ReactNode;
+  external?: boolean;
 };
 
 /* =========================================================
@@ -160,6 +161,24 @@ function getMailHref(
   return normalized
     ? `mailto:${normalized}`
     : "#";
+}
+
+function getWhatsAppDisplayValue(
+  value: string,
+) {
+  const digits =
+    value.replace(/\D/g, "");
+
+  if (
+    digits.startsWith("880") &&
+    digits.length === 13
+  ) {
+    return `+${digits.slice(0, 3)} ${digits.slice(3)}`;
+  }
+
+  return digits
+    ? `+${digits}`
+    : "WhatsApp";
 }
 
 /* =========================================================
@@ -590,6 +609,33 @@ export default function CustomerSupportPage() {
       ],
     );
 
+  const whatsappLink =
+    useMemo(
+      () =>
+        footerSettings
+          .additionalSocialLinks
+          ?.find(
+            (link) =>
+              link.enabled !==
+                false &&
+              String(
+                link.label || "",
+              )
+                .trim()
+                .toLowerCase() ===
+                "whatsapp" &&
+              Boolean(
+                String(
+                  link.url || "",
+                ).trim(),
+              ),
+          ) ?? null,
+      [
+        footerSettings
+          .additionalSocialLinks,
+      ],
+    );
+
   /* =======================================================
      CLIENT-SIDE SEO
   ======================================================= */
@@ -708,6 +754,43 @@ export default function CustomerSupportPage() {
                   d="M5 4h3l2 5-2 1.5a15 15 0 0 0 5.5 5.5L15 14l5 2v3a2 2 0 0 1-2 2C10.3 21 3 13.7 3 6a2 2 0 0 1 2-2Z"
                   stroke="currentColor"
                   strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            ),
+          }
+        : null,
+
+      whatsappLink
+        ? {
+            label:
+              "WhatsApp",
+            value:
+              getWhatsAppDisplayValue(
+                whatsappLink.url,
+              ),
+            href:
+              whatsappLink.url,
+            external: true,
+            icon: (
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                className="h-5 w-5"
+                aria-hidden="true"
+              >
+                <path
+                  d="M20 11.8a8 8 0 0 1-11.8 7L4 20l1.2-4.1A8 8 0 1 1 20 11.8Z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M9 8.7c.2-.5.5-.5.8-.5h.4c.1 0 .3 0 .4.4l.7 1.7c.1.3.1.4-.1.7l-.5.7c-.2.2-.1.4 0 .6.5.8 1.2 1.5 2 2 .2.1.4.2.6 0l.8-1c.2-.2.4-.3.7-.1l1.7.8c.3.1.4.3.4.5 0 .3-.2 1.4-.7 1.8-.5.5-1.3.7-2 .5-1-.2-2.2-.7-3.5-1.8-1.6-1.4-2.6-3.1-2.9-4.1-.3-.9 0-1.7.3-2.1.3-.3.6-.5.9-.5Z"
+                  stroke="currentColor"
+                  strokeWidth="1.25"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
@@ -923,6 +1006,16 @@ export default function CustomerSupportPage() {
                           href={
                             item.href
                           }
+                          target={
+                            item.external
+                              ? "_blank"
+                              : undefined
+                          }
+                          rel={
+                            item.external
+                              ? "noopener noreferrer"
+                              : undefined
+                          }
                           className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition hover:bg-white/[0.08]"
                         >
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-orange-300">
@@ -950,7 +1043,7 @@ export default function CustomerSupportPage() {
                   </div>
                 ) : (
                   <p className="mt-5 text-sm leading-7 text-slate-300">
-                    Store phone and email will appear here after they are added
+                    Store phone, WhatsApp and email will appear here after they are added
                     from Footer Management.
                   </p>
                 )}

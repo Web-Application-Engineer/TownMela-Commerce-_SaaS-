@@ -33,6 +33,12 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ??
   "http://localhost:5000";
 
+const DIGITAL_PLATFORM_LABEL =
+  "Explore Your Digital Presence";
+
+const DIGITAL_PLATFORM_URL =
+  "https://www.sreste.com";
+
 /* =========================================================
    TYPES
 ========================================================= */
@@ -199,8 +205,8 @@ const defaultFooterSettings: FooterSettings = {
     { label: "Track Orders", url: "/order-tracking", enabled: true, order: 1 },
     { label: "Cart", url: "/cart", enabled: true, order: 2 },
     { label: "Checkout", url: "/checkout", enabled: true, order: 3 },
-    { label: "My Account", url: "/my-account", enabled: true, order: 4 },
-    { label: "Customer Support", url: "/customer-support", enabled: true, order: 5 },
+    { label: "Customer Support", url: "/customer-support", enabled: true, order: 4 },
+    { label: DIGITAL_PLATFORM_LABEL, url: DIGITAL_PLATFORM_URL, enabled: true, order: 5 },
   ],
 
   showQuickNavigation: true,
@@ -335,8 +341,6 @@ function createFooterMenuUrl(
         "/order-tracking",
       cart: "/cart",
       checkout: "/checkout",
-      "my account":
-        "/my-account",
       "customer complaint":
         "/customer-complaint",
       "customer support":
@@ -383,44 +387,180 @@ function createFooterMenuUrl(
 ========================================================= */
 
 
+function isDigitalPlatformLink(
+  link: FooterLink,
+) {
+  const normalizedLabel =
+    String(link.label || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+
+  const normalizedUrl =
+    String(link.url || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\/+$/, "");
+
+  return (
+    normalizedLabel ===
+      DIGITAL_PLATFORM_LABEL.toLowerCase() ||
+    normalizedUrl ===
+      "https://www.sreste.com" ||
+    normalizedUrl ===
+      "https://sreste.com" ||
+    normalizedUrl ===
+      "www.sreste.com" ||
+    normalizedUrl ===
+      "sreste.com"
+  );
+}
+
 function normalizeQuickNavigationLinks(
   links: FooterLink[],
 ): FooterLink[] {
-  return links.map((link) => {
-    const normalizedLabel =
-      String(link.label || "")
+  const normalizedLinks =
+    links
+      .filter((link) => {
+        const normalizedLabel =
+          String(link.label || "")
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, " ");
+
+        const normalizedUrl =
+          String(link.url || "")
+            .trim()
+            .toLowerCase();
+
+        return !(
+          normalizedLabel ===
+            "my account" ||
+          normalizedUrl ===
+            "/my-account"
+        );
+      })
+      .map((link) => {
+        const normalizedLabel =
+          String(link.label || "")
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, " ");
+
+        const normalizedUrl =
+          String(link.url || "")
+            .trim()
+            .toLowerCase();
+
+        if (
+          normalizedLabel === "support" ||
+          normalizedUrl === "/support"
+        ) {
+          return {
+            ...link,
+            label: "Customer Support",
+            url: "/customer-support",
+          };
+        }
+
+        if (
+          normalizedLabel ===
+          "customer support"
+        ) {
+          return {
+            ...link,
+            url: "/customer-support",
+          };
+        }
+
+        if (
+          isDigitalPlatformLink(
+            link,
+          )
+        ) {
+          return {
+            ...link,
+            label:
+              DIGITAL_PLATFORM_LABEL,
+            url:
+              DIGITAL_PLATFORM_URL,
+          };
+        }
+
+        return link;
+      });
+
+  const hasDigitalPlatformLink =
+    normalizedLinks.some(
+      (link) =>
+        isDigitalPlatformLink(
+          link,
+        ),
+    );
+
+  if (
+    !hasDigitalPlatformLink
+  ) {
+    normalizedLinks.push({
+      label:
+        DIGITAL_PLATFORM_LABEL,
+      url:
+        DIGITAL_PLATFORM_URL,
+      enabled: true,
+      order:
+        normalizedLinks.length +
+        1,
+    });
+  }
+
+  return normalizedLinks.map(
+    (
+      link,
+      index,
+    ) => ({
+      ...link,
+      order:
+        index + 1,
+    }),
+  );
+}
+
+
+function findWhatsAppLink(
+  links: AdditionalSocialLink[],
+) {
+  return links.find(
+    (item) =>
+      item.label
         .trim()
-        .toLowerCase()
-        .replace(/\s+/g, " ");
+        .toLowerCase() ===
+      "whatsapp",
+  );
+}
 
-    const normalizedUrl =
-      String(link.url || "")
-        .trim()
-        .toLowerCase();
+function getWhatsAppNumber(
+  links: AdditionalSocialLink[],
+) {
+  const item =
+    findWhatsAppLink(links);
 
-    if (
-      normalizedLabel === "support" ||
-      normalizedUrl === "/support"
-    ) {
-      return {
-        ...link,
-        label: "Customer Support",
-        url: "/customer-support",
-      };
-    }
+  if (!item) {
+    return "";
+  }
 
-    if (
-      normalizedLabel ===
-      "customer support"
-    ) {
-      return {
-        ...link,
-        url: "/customer-support",
-      };
-    }
+  const waMatch =
+    item.url.match(
+      /wa\.me\/(\d+)/i,
+    );
 
-    return link;
-  });
+  if (waMatch?.[1]) {
+    return waMatch[1];
+  }
+
+  return item.url.replace(
+    /\D/g,
+    "",
+  );
 }
 
 export default function FooterManagementClient() {
@@ -906,6 +1046,102 @@ export default function FooterManagementClient() {
     setSuccessMessage("");
   }
 
+  function updateWhatsAppNumber(
+    value: string,
+  ) {
+    const digits =
+      value.replace(/\D/g, "");
+
+    const currentLinks =
+      settings.additionalSocialLinks;
+
+    const existingIndex =
+      currentLinks.findIndex(
+        (item) =>
+          item.label
+            .trim()
+            .toLowerCase() ===
+          "whatsapp",
+      );
+
+    if (!digits) {
+      if (existingIndex >= 0) {
+        updateSetting(
+          "additionalSocialLinks",
+          currentLinks
+            .filter(
+              (
+                _,
+                index,
+              ) =>
+                index !==
+                existingIndex,
+            )
+            .map(
+              (
+                item,
+                index,
+              ) => ({
+                ...item,
+                order:
+                  index + 1,
+              }),
+            ),
+        );
+      }
+
+      return;
+    }
+
+    const whatsappLink:
+      AdditionalSocialLink = {
+      label:
+        "WhatsApp",
+      url:
+        `https://wa.me/${digits}`,
+      iconText:
+        "WA",
+      enabled:
+        true,
+      order:
+        existingIndex >= 0
+          ? currentLinks[
+              existingIndex
+            ].order
+          : currentLinks.length +
+            1,
+    };
+
+    if (existingIndex >= 0) {
+      updateSetting(
+        "additionalSocialLinks",
+        currentLinks.map(
+          (
+            item,
+            index,
+          ) =>
+            index ===
+            existingIndex
+              ? {
+                  ...item,
+                  ...whatsappLink,
+                }
+              : item,
+        ),
+      );
+
+      return;
+    }
+
+    updateSetting(
+      "additionalSocialLinks",
+      [
+        ...currentLinks,
+        whatsappLink,
+      ],
+    );
+  }
+
   /* =======================================================
      UPLOAD FOOTER LOGO
   ======================================================= */
@@ -1209,6 +1445,18 @@ export default function FooterManagementClient() {
               }
 
               if (
+                field ===
+                  "quickNavigationLinks" &&
+                isDigitalPlatformLink(
+                  item,
+                ) &&
+                key !== "enabled" &&
+                key !== "order"
+              ) {
+                return item;
+              }
+
+              if (
                 key === "label"
               ) {
                 const label =
@@ -1291,6 +1539,17 @@ export default function FooterManagementClient() {
     field: FooterLinkGroupField,
     index: number,
   ) {
+    if (
+      field ===
+        "quickNavigationLinks" &&
+      settings[field][index] &&
+      isDigitalPlatformLink(
+        settings[field][index],
+      )
+    ) {
+      return;
+    }
+
     updateSetting(
       field,
       settings[field]
@@ -1333,6 +1592,15 @@ export default function FooterManagementClient() {
       setErrorMessage("");
       setSuccessMessage("");
 
+      const settingsToSave = {
+        ...settings,
+
+        quickNavigationLinks:
+          normalizeQuickNavigationLinks(
+            settings.quickNavigationLinks,
+          ),
+      };
+
       const response =
         await fetch(
           `${API_BASE_URL}/api/footer-settings`,
@@ -1347,7 +1615,7 @@ export default function FooterManagementClient() {
 
             body:
               JSON.stringify(
-                settings,
+                settingsToSave,
               ),
           },
         );
@@ -1748,6 +2016,33 @@ export default function FooterManagementClient() {
               placeholder="info@example.com"
               className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-orange-300"
             />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-bold text-gray-700">
+              WhatsApp
+            </label>
+
+            <input
+              type="text"
+              value={
+                getWhatsAppNumber(
+                  settings.additionalSocialLinks,
+                )
+              }
+              onChange={(event) =>
+                updateWhatsAppNumber(
+                  event.target.value,
+                )
+              }
+              placeholder="8801XXXXXXXXX"
+              inputMode="tel"
+              className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-orange-300"
+            />
+
+            <p className="mt-1 text-xs text-gray-400">
+              Use country code without spaces, for example 8801XXXXXXXXX.
+            </p>
           </div>
         </div>
 
@@ -2199,7 +2494,7 @@ export default function FooterManagementClient() {
           </h2>
 
           <p className="mt-1 text-sm text-gray-500">
-            Add the Google Map link for this business.
+            Add this tenant's Google Map link. Each tenant can save its own location.
           </p>
         </div>
 
@@ -2803,6 +3098,11 @@ function FooterMenuEditor({
                 <input
                   type="text"
                   value={item.label}
+                  readOnly={
+                    isDigitalPlatformLink(
+                      item,
+                    )
+                  }
                   onChange={(event) =>
                     onChange(
                       index,
@@ -2811,12 +3111,23 @@ function FooterMenuEditor({
                     )
                   }
                   placeholder="Link label"
-                  className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none"
+                  className={`h-10 rounded-lg border border-gray-200 px-3 text-sm outline-none ${
+                    isDigitalPlatformLink(
+                      item,
+                    )
+                      ? "bg-gray-100 font-bold text-gray-600"
+                      : "bg-white"
+                  }`}
                 />
 
                 <input
                   type="text"
                   value={item.url}
+                  readOnly={
+                    isDigitalPlatformLink(
+                      item,
+                    )
+                  }
                   onChange={(event) =>
                     onChange(
                       index,
@@ -2825,9 +3136,21 @@ function FooterMenuEditor({
                     )
                   }
                   aria-label="Menu link"
-                  title="Generated automatically from the menu name, but you can customize it."
+                  title={
+                    isDigitalPlatformLink(
+                      item,
+                    )
+                      ? "Fixed digital platform link"
+                      : "Generated automatically from the menu name, but you can customize it."
+                  }
                   placeholder="Auto-generated link"
-                  className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-orange-300"
+                  className={`h-10 rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-orange-300 ${
+                    isDigitalPlatformLink(
+                      item,
+                    )
+                      ? "bg-gray-100 font-semibold text-gray-600"
+                      : "bg-white"
+                  }`}
                 />
 
                 <input
@@ -2866,16 +3189,27 @@ function FooterMenuEditor({
                   Show
                 </label>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    onRemove(index)
-                  }
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600"
-                  aria-label="Remove footer menu link"
-                >
-                  <Trash2 size={16} />
-                </button>
+                {isDigitalPlatformLink(
+                  item,
+                ) ? (
+                  <div
+                    className="inline-flex h-10 items-center justify-center rounded-lg border border-orange-200 bg-orange-50 px-3 text-xs font-extrabold text-[#FF6900]"
+                    title="This fixed link can be enabled or disabled."
+                  >
+                    Fixed
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onRemove(index)
+                    }
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600"
+                    aria-label="Remove footer menu link"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
               </div>
             ),
           )

@@ -20,6 +20,12 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ??
   "http://localhost:5000";
 
+const DIGITAL_PLATFORM_LABEL =
+  "Explore Digital Presence";
+
+const DIGITAL_PLATFORM_URL =
+  "https://www.sreste.com";
+
 /* =========================================================
    TYPES
 ========================================================= */
@@ -101,34 +107,129 @@ type FooterSettingsContextValue = {
    The actual storefront page is /customer-support.
 ========================================================= */
 
+function isDigitalPlatformLink(
+  link: FooterLink,
+) {
+  const normalizedLabel =
+    String(link.label || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+
+  const normalizedUrl =
+    String(link.url || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\/+$/, "");
+
+  return (
+    normalizedLabel ===
+      DIGITAL_PLATFORM_LABEL.toLowerCase() ||
+    normalizedUrl ===
+      "https://www.sreste.com" ||
+    normalizedUrl ===
+      "https://sreste.com" ||
+    normalizedUrl ===
+      "www.sreste.com" ||
+    normalizedUrl ===
+      "sreste.com"
+  );
+}
+
 function normalizeQuickNavigationLinks(
   links: FooterLink[],
 ): FooterLink[] {
-  return links.map((link) => {
-    const normalizedUrl =
-      String(link.url || "")
-        .trim()
-        .toLowerCase();
+  const normalizedLinks =
+    links
+      .filter((link) => {
+        const normalizedUrl =
+          String(link.url || "")
+            .trim()
+            .toLowerCase();
 
-    const normalizedLabel =
-      String(link.label || "")
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, " ");
+        const normalizedLabel =
+          String(link.label || "")
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, " ");
 
-    if (
-      normalizedUrl === "/support" ||
-      normalizedLabel === "support" ||
-      normalizedLabel === "customer support"
-    ) {
-      return {
-        ...link,
-        url: "/customer-support",
-      };
-    }
+        return !(
+          normalizedUrl ===
+            "/my-account" ||
+          normalizedLabel ===
+            "my account"
+        );
+      })
+      .map((link) => {
+        const normalizedUrl =
+          String(link.url || "")
+            .trim()
+            .toLowerCase();
 
-    return link;
-  });
+        const normalizedLabel =
+          String(link.label || "")
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, " ");
+
+        if (
+          normalizedUrl ===
+            "/support" ||
+          normalizedLabel ===
+            "support" ||
+          normalizedLabel ===
+            "customer support"
+        ) {
+          return {
+            ...link,
+            label:
+              normalizedLabel ===
+              "support"
+                ? "Customer Support"
+                : link.label,
+            url:
+              "/customer-support",
+          };
+        }
+
+        if (
+          isDigitalPlatformLink(
+            link,
+          )
+        ) {
+          return {
+            ...link,
+            label:
+              DIGITAL_PLATFORM_LABEL,
+            url:
+              DIGITAL_PLATFORM_URL,
+          };
+        }
+
+        return link;
+      });
+
+  if (
+    !normalizedLinks.some(
+      (link) =>
+        isDigitalPlatformLink(
+          link,
+        ),
+    )
+  ) {
+    normalizedLinks.push({
+      label:
+        DIGITAL_PLATFORM_LABEL,
+      url:
+        DIGITAL_PLATFORM_URL,
+      enabled: true,
+      order:
+        normalizedLinks.length +
+        1,
+    });
+  }
+
+  return normalizedLinks;
 }
 
 /* =========================================================
@@ -192,8 +293,8 @@ const defaultFooterSettings: FooterSettings = {
     { label: "Track Orders", url: "/order-tracking", enabled: true, order: 1 },
     { label: "Cart", url: "/cart", enabled: true, order: 2 },
     { label: "Checkout", url: "/checkout", enabled: true, order: 3 },
-    { label: "My Account", url: "/my-account", enabled: true, order: 4 },
-    { label: "Customer Support", url: "/customer-support", enabled: true, order: 5 },
+    { label: "Customer Support", url: "/customer-support", enabled: true, order: 4 },
+    { label: DIGITAL_PLATFORM_LABEL, url: DIGITAL_PLATFORM_URL, enabled: true, order: 5 },
   ],
 
   showQuickNavigation: true,
