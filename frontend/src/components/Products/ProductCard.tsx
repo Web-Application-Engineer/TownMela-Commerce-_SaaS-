@@ -7,7 +7,6 @@ import {
   Check,
   LoaderCircle,
   ShoppingCart,
-  Star,
 } from "lucide-react";
 
 import type {
@@ -21,44 +20,8 @@ import {
 import {
   formatProductPrice,
   getDiscountPercentage,
-  getProductRating,
   hasProductDiscount,
 } from "../../utils/productHelpers";
-
-/* =========================================================
-   STAR RATING COMPONENT
-========================================================= */
-
-function RatingStars({
-  rating,
-}: {
-  rating: number;
-}) {
-  return (
-    <div className="flex items-center gap-1">
-      <div className="flex items-center gap-0.5">
-        {Array.from({
-          length: 5,
-        }).map((_, index) => (
-          <Star
-            key={index}
-            size={14}
-            className={
-              index <
-              Math.round(rating)
-                ? "fill-[#F4C018] text-[#F4C018]"
-                : "fill-gray-200 text-gray-200"
-            }
-          />
-        ))}
-      </div>
-
-      <span className="text-sm font-medium text-[#111827]">
-        ({rating.toFixed(1)})
-      </span>
-    </div>
-  );
-}
 
 /* =========================================================
    SHARED PRODUCT CARD
@@ -96,11 +59,6 @@ export default function ProductCard({
   } = useProductActions(
     product,
   );
-
-  const productRating =
-    getProductRating(
-      product,
-    );
 
   const hasDiscount =
     hasProductDiscount(
@@ -298,7 +256,7 @@ export default function ProductCard({
           className="
             mt-2
             line-clamp-2
-            min-h-[44px]
+            min-h-[35px]
             text-center
             text-[18px]
             font-semibold
@@ -319,7 +277,7 @@ export default function ProductCard({
 
       <div
         className="
-          mt-1
+          mt-0
           flex
           flex-wrap
           items-center
@@ -343,18 +301,6 @@ export default function ProductCard({
               )}
             </span>
           )}
-      </div>
-
-      {/* ===============================
-          RATING
-      =============================== */}
-
-      <div className="mt-3 flex justify-center">
-        <RatingStars
-          rating={
-            productRating
-          }
-        />
       </div>
 
       {/* ===============================

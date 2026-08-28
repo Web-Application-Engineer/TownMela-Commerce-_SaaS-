@@ -663,7 +663,7 @@ export default function Footer() {
                       title={
                         item.name
                       }
-                      className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-full border border-[#f7931a] bg-black/25 text-[13px] font-bold text-white transition duration-300 hover:bg-[#f7931a]"
+                      className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-full border border-[#f7931a] bg-[#ebebeb] text-[13px] font-bold text-white transition duration-300 hover:bg-black/25"
                     >
                       <SocialIcon
                         name={
