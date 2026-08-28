@@ -31,9 +31,16 @@ type PopularCategoryApiItem = {
   _id?: string;
   id?: string | number;
   displayName?: string;
+
+  // Backend may return the selected category under `category`.
+  category?: string | CategoryReference;
+
+  // Kept for compatibility with older/frontend-shaped responses.
   categoryId?: string | CategoryReference;
+
   categoryName?: string;
   categorySlug?: string;
+  slug?: string;
   thumbnail?: string;
   image?: string;
   link?: string;
@@ -81,6 +88,13 @@ function getCategoryReference(
   item: PopularCategoryApiItem
 ): CategoryReference | null {
   if (
+    item.category &&
+    typeof item.category === "object"
+  ) {
+    return item.category;
+  }
+
+  if (
     item.categoryId &&
     typeof item.categoryId === "object"
   ) {
@@ -97,12 +111,15 @@ function normalizePopularCategory(
   const category = getCategoryReference(item);
 
   const rawCategoryId =
-    typeof item.categoryId === "string"
-      ? item.categoryId
-      : category?._id || category?.id || "";
+    typeof item.category === "string"
+      ? item.category
+      : typeof item.categoryId === "string"
+        ? item.categoryId
+        : category?._id || category?.id || "";
 
   const slug =
     item.categorySlug?.trim() ||
+    item.slug?.trim() ||
     category?.slug?.trim() ||
     "";
 
@@ -123,12 +140,11 @@ function normalizePopularCategory(
     FALLBACK_IMAGE;
 
   const link =
-    item.link?.trim() ||
-    (slug
+    slug
       ? `/category/${encodeURIComponent(slug)}`
       : rawCategoryId
         ? `/category/${encodeURIComponent(rawCategoryId)}`
-        : "/shop");
+        : "/shop";
 
   return {
     id: String(
