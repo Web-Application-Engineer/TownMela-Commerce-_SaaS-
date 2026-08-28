@@ -663,7 +663,7 @@ export default function Footer() {
                       title={
                         item.name
                       }
-                      className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-full border-2 border-[#F3C600] text-[13px] font-bold text-white transition duration-300 hover:bg-[#FFFFFF]"
+                      className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-full border border-[#f7931a] bg-black/25 text-[13px] font-bold text-white transition duration-300 hover:bg-[#f7931a]"
                     >
                       <SocialIcon
                         name={
@@ -781,10 +781,26 @@ export default function Footer() {
 
             <nav className="space-y-3">
               {quickNavigationLinks.map(
-                (item) => (
+                (item) => {
+                  const isExternalLink =
+                    /^https?:\/\//i.test(
+                      item.url.trim(),
+                    );
+
+                  return (
                   <Link
                     key={`${item.label}-${item.url}`}
                     href={item.url}
+                    target={
+                      isExternalLink
+                        ? "_blank"
+                        : undefined
+                    }
+                    rel={
+                      isExternalLink
+                        ? "noopener noreferrer"
+                        : undefined
+                    }
                     className="group flex items-center gap-2.5 text-[14px] text-white/80 transition hover:text-[#f7931a]"
                   >
                     <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/5 text-[#f7931a] transition group-hover:border-[#f7931a] group-hover:bg-[#f7931a] group-hover:text-black">
@@ -798,7 +814,8 @@ export default function Footer() {
                       {item.label}
                     </span>
                   </Link>
-                ),
+                  );
+                },
               )}
             </nav>
           </div>
