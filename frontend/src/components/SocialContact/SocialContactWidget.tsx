@@ -497,6 +497,20 @@ export default function SocialContactWidget() {
       null,
     );
 
+  /*
+   * Desktop/tablet hover handoff timer.
+   *
+   * There is a small visual gap between the bottom trigger and
+   * the social icon panel. Closing immediately on mouse leave
+   * makes the panel disappear before the pointer can reach an icon.
+   * A short delay keeps the panel open long enough to cross that gap.
+   */
+  const hoverCloseTimerRef =
+    useRef<
+      ReturnType<typeof setTimeout> |
+      null
+    >(null);
+
   const [
     settings,
     setSettings,
@@ -519,6 +533,77 @@ export default function SocialContactWidget() {
     isLabelHovered,
     setIsLabelHovered,
   ] = useState(false);
+
+  /* =======================================================
+     DESKTOP / TABLET HOVER HELPERS
+  ======================================================= */
+
+  const clearHoverCloseTimer =
+    () => {
+      if (
+        hoverCloseTimerRef.current
+      ) {
+        clearTimeout(
+          hoverCloseTimerRef.current,
+        );
+
+        hoverCloseTimerRef.current =
+          null;
+      }
+    };
+
+  const openOnDesktopHover =
+    () => {
+      if (
+        !window.matchMedia(
+          "(min-width: 768px)",
+        ).matches
+      ) {
+        return;
+      }
+
+      clearHoverCloseTimer();
+      setIsOpen(true);
+    };
+
+  const closeOnDesktopHoverLeave =
+    () => {
+      if (
+        !window.matchMedia(
+          "(min-width: 768px)",
+        ).matches
+      ) {
+        return;
+      }
+
+      clearHoverCloseTimer();
+
+      hoverCloseTimerRef.current =
+        setTimeout(
+          () => {
+            setIsOpen(false);
+
+            hoverCloseTimerRef.current =
+              null;
+          },
+          260,
+        );
+    };
+
+  /*
+   * Clear any pending close timer when the widget unmounts.
+   */
+  useEffect(() => {
+    return () => {
+      if (
+        hoverCloseTimerRef.current
+      ) {
+        clearTimeout(
+          hoverCloseTimerRef.current,
+        );
+      }
+    };
+  }, []);
 
   /* =======================================================
      LOAD TENANT-SPECIFIC PUBLIC SETTINGS
@@ -867,24 +952,12 @@ export default function SocialContactWidget() {
         md:bottom-7
         md:h-[370px]
       "
-      onMouseEnter={() => {
-        if (
-          window.matchMedia(
-            "(min-width: 768px)",
-          ).matches
-        ) {
-          setIsOpen(true);
-        }
-      }}
-      onMouseLeave={() => {
-        if (
-          window.matchMedia(
-            "(min-width: 768px)",
-          ).matches
-        ) {
-          setIsOpen(false);
-        }
-      }}
+      onMouseEnter={
+        openOnDesktopHover
+      }
+      onMouseLeave={
+        closeOnDesktopHoverLeave
+      }
     >
       <style>{`
         @keyframes tmSocialTypingCursor {
@@ -1018,6 +1091,19 @@ export default function SocialContactWidget() {
         aria-hidden={
           !isOpen
         }
+        onMouseEnter={() => {
+          if (
+            window.matchMedia(
+              "(min-width: 768px)",
+            ).matches
+          ) {
+            clearHoverCloseTimer();
+            setIsOpen(true);
+          }
+        }}
+        onMouseLeave={
+          closeOnDesktopHoverLeave
+        }
       >
         {contactItems.map(
           (item) => (
@@ -1107,11 +1193,13 @@ export default function SocialContactWidget() {
                 !current,
             )
           }
-          onMouseEnter={() =>
+          onMouseEnter={() => {
+            clearHoverCloseTimer();
+
             setIsLabelHovered(
               true,
-            )
-          }
+            );
+          }}
           onMouseLeave={() =>
             setIsLabelHovered(
               false,
@@ -1191,11 +1279,13 @@ export default function SocialContactWidget() {
                 !current,
             )
           }
-          onMouseEnter={() =>
+          onMouseEnter={() => {
+            clearHoverCloseTimer();
+
             setIsMainHovered(
               true,
-            )
-          }
+            );
+          }}
           onMouseLeave={() =>
             setIsMainHovered(
               false,

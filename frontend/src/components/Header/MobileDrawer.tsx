@@ -25,6 +25,14 @@ import type {
   Category,
 } from "./headerTypes";
 
+import {
+  useFooterSettings,
+} from "@/src/context/FooterSettingsContext";
+
+import {
+  useStorefrontTenant,
+} from "@/src/context/StorefrontTenantContext";
+
 /* =========================================================
    TYPES
 ========================================================= */
@@ -59,6 +67,96 @@ function getParentCategoryId(
 }
 
 /* =========================================================
+   GOOGLE MAP HELPERS
+========================================================= */
+
+function extractGoogleMapUrl(
+  value: string,
+) {
+  const trimmed =
+    String(value || "").trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  /*
+   * Footer Management may store either:
+   * - a normal Google Maps URL
+   * - full Google Maps iframe embed code
+   *
+   * If iframe code is saved, use only its src.
+   */
+  const iframeSrcMatch =
+    trimmed.match(
+      /<iframe[^>]+src=["']([^"']+)["']/i,
+    );
+
+  return (
+    iframeSrcMatch?.[1] ||
+    trimmed
+  );
+}
+
+function getGoogleMapOpenUrl(
+  mapValue: string,
+  storeName: string,
+  address: string,
+) {
+  const normalizedUrl =
+    extractGoogleMapUrl(
+      mapValue,
+    );
+
+  if (!normalizedUrl) {
+    return "";
+  }
+
+  /*
+   * An embed URL is meant for an iframe.
+   * Convert it to a normal Google Maps search URL
+   * before opening it from the mobile drawer.
+   */
+  if (
+    normalizedUrl.includes(
+      "google.com/maps/embed",
+    )
+  ) {
+    let placeName = "";
+
+    try {
+      const decoded =
+        decodeURIComponent(
+          normalizedUrl,
+        );
+
+      const placeMatch =
+        decoded.match(
+          /!2s([^!]+)/,
+        );
+
+      placeName =
+        placeMatch?.[1]?.trim() ||
+        "";
+    } catch {
+      placeName = "";
+    }
+
+    const query =
+      placeName ||
+      storeName ||
+      address ||
+      "Google Maps";
+
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+      query,
+    )}`;
+  }
+
+  return normalizedUrl;
+}
+
+/* =========================================================
    MOBILE DRAWER
 ========================================================= */
 
@@ -79,6 +177,46 @@ export default function MobileDrawer({
     expandedCategoryId,
     setExpandedCategoryId,
   ] = useState("");
+
+  /* =======================================================
+     CURRENT TENANT LOCATION
+  ======================================================= */
+
+  const {
+    settings:
+      footerSettings,
+    isLoading:
+      isFooterSettingsLoading,
+  } =
+    useFooterSettings();
+
+  const {
+    tenant,
+  } =
+    useStorefrontTenant();
+
+  const storeName =
+    String(
+      tenant?.storeName ||
+        footerSettings.businessName ||
+        "Store",
+    ).trim() ||
+    "Store";
+
+  const googleMapUrl =
+    getGoogleMapOpenUrl(
+      footerSettings.googleMapUrl,
+      storeName,
+      footerSettings.address,
+    );
+
+  const showStoreLocation =
+    !isFooterSettingsLoading &&
+    footerSettings.isActive !==
+      false &&
+    footerSettings.showGoogleMap !==
+      false &&
+    Boolean(googleMapUrl);
 
   /* =======================================================
      CLIENT MOUNT
@@ -817,61 +955,71 @@ export default function MobileDrawer({
           </div>
 
           {/* ===============================================
-              STORE INFORMATION
+              TENANT STORE LOCATION
           =============================================== */}
 
-          <div
-            className="
-              mx-6
-              rounded-xl
-              bg-gray-50
-              p-4
-              text-xs
-            "
-          >
-            <p className="text-gray-500">
-              Find Us On
-            </p>
+          {showStoreLocation && (
+            <>
+              <div
+                className="
+                  mx-6
+                  rounded-xl
+                  bg-gray-50
+                  p-4
+                  text-xs
+                "
+              >
+                <p className="text-gray-500">
+                  Find Us On
+                </p>
 
-            <p className="mt-1 font-semibold text-blue-500">
-              TownMela Store Locator
-            </p>
-          </div>
+                <p className="mt-1 truncate font-semibold text-blue-500">
+                  {storeName} Location
+                </p>
+              </div>
 
-          {/* ===============================================
-              STORE LOCATOR
-          =============================================== */}
+              <div className="px-6 pb-6 pt-4">
+                <a
+                  href={googleMapUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={onClose}
+                  aria-label={`Open ${storeName} location on Google Maps`}
+                  className="
+                    flex
+                    w-full
+                    items-center
+                    justify-between
+                    rounded-xl
+                    bg-[#FF6900]
+                    px-4
+                    py-3
+                    text-sm
+                    font-semibold
+                    text-white
+                    transition-colors
+                    hover:bg-[#E85F00]
+                  "
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <MapPin
+                      size={17}
+                      className="shrink-0"
+                    />
 
-          <div className="px-6 pb-6 pt-4">
-            <button
-              type="button"
-              className="
-                flex
-                w-full
-                items-center
-                justify-between
-                rounded-xl
-                bg-[#FF6900]
-                px-4
-                py-3
-                text-sm
-                font-semibold
-                text-white
-                transition-colors
-                hover:bg-[#E85F00]
-              "
-            >
-              <span className="flex items-center gap-2">
-                <MapPin size={17} />
+                    <span className="truncate">
+                      {storeName} Location
+                    </span>
+                  </span>
 
-                Store Locator
-              </span>
-
-              <ChevronRight
-                size={18}
-              />
-            </button>
-          </div>
+                  <ChevronRight
+                    size={18}
+                    className="shrink-0"
+                  />
+                </a>
+              </div>
+            </>
+          )}
         </div>
       </aside>
     </div>,
