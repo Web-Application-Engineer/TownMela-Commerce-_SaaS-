@@ -46,24 +46,53 @@ const TENANT_STORAGE_KEYS = [
   "tenant_id",
 ] as const;
 
-const getTenantHeaders = (): HeadersInit => {
-  if (typeof window === "undefined") {
-    return { Accept: "application/json" };
-  }
+const ENV_TENANT_ID =
+  process.env.NEXT_PUBLIC_TENANT_ID ?? "";
 
-  for (const key of TENANT_STORAGE_KEYS) {
-    const tenantId =
-      window.localStorage.getItem(key)?.trim() || "";
+const getActiveTenantId = () => {
+  if (
+    typeof window !==
+    "undefined"
+  ) {
+    for (
+      const key of
+      TENANT_STORAGE_KEYS
+    ) {
+      const tenantId =
+        window.localStorage
+          .getItem(key)
+          ?.trim() || "";
 
-    if (/^[a-f\d]{24}$/i.test(tenantId)) {
-      return {
-        Accept: "application/json",
-        "X-Tenant-Id": tenantId,
-      };
+      if (
+        /^[a-f\d]{24}$/i.test(
+          tenantId
+        )
+      ) {
+        return tenantId;
+      }
     }
   }
 
-  return { Accept: "application/json" };
+  return /^[a-f\d]{24}$/i.test(
+    ENV_TENANT_ID
+  )
+    ? ENV_TENANT_ID
+    : "";
+};
+
+const getTenantHeaders = (): HeadersInit => {
+  const tenantId =
+    getActiveTenantId();
+
+  return {
+    Accept: "application/json",
+    ...(tenantId
+      ? {
+          "X-Tenant-Id":
+            tenantId,
+        }
+      : {}),
+  };
 };
 
 /* =========================================================
@@ -90,7 +119,7 @@ type ShowcaseSlots = {
   categoryThree: ShowcaseCategory | null;
 };
 
-type ShowcaseConfig = {
+export type ShowcaseConfig = {
   _id: string;
   key: "homepage-category-showcase";
   showcases?: ShowcaseSlots[];
@@ -107,6 +136,40 @@ type ApiResponse = {
   message?: string;
 };
 
+/* =========================================================
+   SHARED REQUEST CACHE
+
+   Multiple CategoryShowcase components use the same endpoint.
+   Without this cache every showcase starts its own identical
+   request. The cache shares one in-flight request per tenant
+   and keeps the result briefly in memory.
+========================================================= */
+
+const SHOWCASE_CACHE_TTL_MS =
+  15_000;
+
+type ShowcaseCacheEntry = {
+  expiresAt: number;
+  config: ShowcaseConfig;
+};
+
+const showcaseCache =
+  new Map<
+    string,
+    ShowcaseCacheEntry
+  >();
+
+const showcaseRequests =
+  new Map<
+    string,
+    Promise<ShowcaseConfig>
+  >();
+
+const getShowcaseCacheKey =
+  () =>
+    getActiveTenantId() ||
+    "default";
+
 export type CategoryShowcaseKey = string;
 
 type CategoryShowcaseProps = {
@@ -115,6 +178,14 @@ type CategoryShowcaseProps = {
   showAllText?: string;
   showAllLink?: string;
   emptyMessage?: string;
+
+  /*
+   * Server-preloaded data.
+   * undefined = no preload was attempted, so fetch on mount.
+   * null = preload completed but no config was available.
+   */
+  initialConfig?: ShowcaseConfig | null;
+  initialError?: string | null;
 };
 
 /* =========================================================
@@ -172,6 +243,105 @@ const readJsonResponse = async <T,>(
   return (await response.json()) as T;
 };
 
+const loadSharedShowcaseConfig =
+  async ({
+    forceRefresh = false,
+  }: {
+    forceRefresh?: boolean;
+  } = {}): Promise<ShowcaseConfig> => {
+    const cacheKey =
+      getShowcaseCacheKey();
+
+    const now =
+      Date.now();
+
+    const cached =
+      showcaseCache.get(
+        cacheKey
+      );
+
+    if (
+      !forceRefresh &&
+      cached &&
+      cached.expiresAt > now
+    ) {
+      return cached.config;
+    }
+
+    const existingRequest =
+      showcaseRequests.get(
+        cacheKey
+      );
+
+    if (existingRequest) {
+      return existingRequest;
+    }
+
+    const request =
+      (async () => {
+        const response =
+          await fetch(
+            ENDPOINT,
+            {
+              method:
+                "GET",
+              headers:
+                getTenantHeaders(),
+              cache:
+                "no-store",
+            }
+          );
+
+        const data =
+          await readJsonResponse<ApiResponse>(
+            response
+          );
+
+        if (
+          !response.ok ||
+          !data.success ||
+          !data.showcaseConfig
+        ) {
+          throw new Error(
+            data.message ||
+              "Category showcase could not be loaded."
+          );
+        }
+
+        showcaseCache.set(
+          cacheKey,
+          {
+            config:
+              data.showcaseConfig,
+            expiresAt:
+              Date.now() +
+              SHOWCASE_CACHE_TTL_MS,
+          }
+        );
+
+        return data.showcaseConfig;
+      })();
+
+    showcaseRequests.set(
+      cacheKey,
+      request
+    );
+
+    try {
+      return await request;
+    } finally {
+      if (
+        showcaseRequests.get(
+          cacheKey
+        ) === request
+      ) {
+        showcaseRequests.delete(
+          cacheKey
+        );
+      }
+    }
+  };
+
 /* =========================================================
    SHARED CATEGORY SHOWCASE
 ========================================================= */
@@ -182,15 +352,27 @@ export default function CategoryShowcase({
   showAllText = "Show All",
   showAllLink = "/categories",
   emptyMessage,
+  initialConfig,
+  initialError = null,
 }: CategoryShowcaseProps) {
+  const hasServerPreload =
+    initialConfig !== undefined;
+
   const [showcaseSlots, setShowcaseSlots] =
-    useState<ShowcaseSlots | null>(null);
+    useState<ShowcaseSlots | null>(() =>
+      initialConfig
+        ? getShowcaseSlots(
+            initialConfig,
+            showcaseKey,
+          )
+        : null
+    );
 
   const [isLoading, setIsLoading] =
-    useState(true);
+    useState(!hasServerPreload);
 
   const [errorMessage, setErrorMessage] =
-    useState("");
+    useState(initialError || "");
 
   const [failedImages, setFailedImages] =
     useState<Record<string, boolean>>({});
@@ -213,32 +395,27 @@ export default function CategoryShowcase({
 
         setErrorMessage("");
 
-        const response = await fetch(ENDPOINT, {
-          method: "GET",
-          headers: getTenantHeaders(),
-          cache: "no-store",
-          signal: options?.signal,
-        });
+        if (
+          options?.signal?.aborted
+        ) {
+          return;
+        }
 
-        const data =
-          await readJsonResponse<ApiResponse>(
-            response
-          );
+        const showcaseConfig =
+          await loadSharedShowcaseConfig({
+            forceRefresh:
+              silent,
+          });
 
         if (
-          !response.ok ||
-          !data.success ||
-          !data.showcaseConfig
+          options?.signal?.aborted
         ) {
-          throw new Error(
-            data.message ||
-              "Category showcase could not be loaded."
-          );
+          return;
         }
 
         setShowcaseSlots(
           getShowcaseSlots(
-            data.showcaseConfig,
+            showcaseConfig,
             showcaseKey,
           ),
         );
@@ -274,6 +451,14 @@ export default function CategoryShowcase({
   );
 
   useEffect(() => {
+    /*
+     * When the server already supplied the showcase config, render it
+     * immediately and skip the hydration-time first request.
+     */
+    if (hasServerPreload) {
+      return;
+    }
+
     const controller = new AbortController();
 
     void loadShowcase({
@@ -283,7 +468,10 @@ export default function CategoryShowcase({
     return () => {
       controller.abort();
     };
-  }, [loadShowcase]);
+  }, [
+    hasServerPreload,
+    loadShowcase,
+  ]);
 
   /* =======================================================
      LIVE SYNC
@@ -291,7 +479,13 @@ export default function CategoryShowcase({
 
   useEffect(() => {
     const refresh = () => {
-      void loadShowcase({ silent: true });
+      showcaseCache.delete(
+        getShowcaseCacheKey()
+      );
+
+      void loadShowcase({
+        silent: true,
+      });
     };
 
     const handleStorage = (

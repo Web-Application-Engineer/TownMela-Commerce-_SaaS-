@@ -17,7 +17,7 @@ import {
   CircleDollarSign,
   GalleryHorizontalEnd,
   LayoutDashboard,
-  KeyRound,
+  MessageCircleMore,
   LogOut,
   Package,
   PanelBottom,
@@ -240,6 +240,22 @@ const menuItems:
 
   {
     label:
+      "Social Contact",
+
+    href:
+      "/admin/social-contact",
+
+    icon:
+      MessageCircleMore,
+
+    roles: [
+      "admin",
+      "superadmin",
+    ],
+  },
+
+  {
+    label:
       "Customers",
 
     href:
@@ -260,22 +276,6 @@ const menuItems:
 
     href:
       "/admin/coupons",
-
-    icon:
-      TicketPercent,
-
-    roles: [
-      "admin",
-      "superadmin",
-    ],
-  },
-
-  {
-    label:
-      "Stock Clearance",
-
-    href:
-      "/admin/stock-clearance",
 
     icon:
       TicketPercent,
@@ -330,36 +330,6 @@ const menuItems:
 
     roles: [
       "admin",
-      "superadmin",
-    ],
-  },
-
-  {
-    label:
-      "Change Password",
-
-    href:
-      "/admin/tenant-change-password",
-
-    icon:
-      KeyRound,
-
-    roles: [
-      "admin",
-    ],
-  },
-
-  {
-    label:
-      "Change Password",
-
-    href:
-      "/admin/change-password",
-
-    icon:
-      KeyRound,
-
-    roles: [
       "superadmin",
     ],
   },

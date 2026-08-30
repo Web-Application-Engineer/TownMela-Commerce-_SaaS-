@@ -320,13 +320,68 @@ const getProducts = async (req, res) => {
     const tenantId = requireTenantId(req, res);
     if (!tenantId) return;
 
-    const products = await Product.find({
+    /*
+     * Homepage performance mode:
+     * GET /api/products?homepage=true
+     *
+     * The normal /api/products response is intentionally preserved.
+     * Homepage mode returns only products assigned to a homepage section
+     * and only the lightweight fields needed by homepage product cards.
+     */
+    const homepageOnly =
+      String(req.query.homepage || "")
+        .trim()
+        .toLowerCase() === "true";
+
+    const query = {
       tenant: tenantId,
       ...PUBLIC_FILTER,
-    })
+      ...(homepageOnly
+        ? {
+            homepageSection: {
+              $exists: true,
+              $nin: ["", null],
+            },
+          }
+        : {}),
+    };
+
+    let productQuery = Product.find(query)
       .populate("category", "name slug")
-      .sort({ createdAt: -1 })
-      .lean();
+      .sort({ createdAt: -1 });
+
+    if (homepageOnly) {
+      productQuery = productQuery.select(
+        [
+          "_id",
+          "name",
+          "slug",
+          "price",
+          "oldPrice",
+          "rating",
+          "image",
+          "stock",
+          "category",
+          "homepageSection",
+          "createdAt",
+        ].join(" ")
+      );
+    }
+
+    const products = await productQuery.lean();
+
+    /*
+     * Keep caches tenant-aware.
+     * This is only a short browser/proxy hint; normal admin/product
+     * endpoints remain unchanged.
+     */
+    if (homepageOnly) {
+      res.set("Vary", "X-Tenant-Id");
+      res.set(
+        "Cache-Control",
+        "private, max-age=5, stale-while-revalidate=15"
+      );
+    }
 
     return res.status(200).json({ success: true, products });
   } catch (error) {

@@ -21,7 +21,7 @@ type HomepageBannerType =
   | "sideTop"
   | "sideBottom";
 
-type HomepageBanner = {
+export type HomepageBanner = {
   _id: string;
   title: string;
   image: string;
@@ -44,6 +44,11 @@ type DisplayBanner = {
   image: string;
   alt: string;
   link: string;
+};
+
+type HeroProps = {
+  initialBanners?: HomepageBanner[];
+  initialError?: string | null;
 };
 
 /* =========================================================
@@ -97,6 +102,20 @@ const sortBannersByOrder = (
     }
   );
 
+const getActiveSortedBanners = (
+  banners: HomepageBanner[]
+) =>
+  sortBannersByOrder(
+    banners.filter(
+      (banner) =>
+        banner.active === true &&
+        Boolean(banner._id) &&
+        Boolean(
+          banner.image?.trim()
+        )
+    )
+  );
+
 const mapToDisplayBanner = (
   banner: HomepageBanner
 ): DisplayBanner => ({
@@ -118,7 +137,20 @@ const mapToDisplayBanner = (
    HERO COMPONENT
 ========================================================= */
 
-export default function Hero() {
+export default function Hero({
+  initialBanners,
+  initialError = null,
+}: HeroProps) {
+  const hasInitialBannerPayload =
+    initialBanners !== undefined;
+
+  const initialSortedBanners =
+    hasInitialBannerPayload
+      ? getActiveSortedBanners(
+          initialBanners
+        )
+      : [];
+
   /* =======================================================
      API BANNER STATES
   ======================================================= */
@@ -126,27 +158,51 @@ export default function Hero() {
   const [
     mainBanners,
     setMainBanners,
-  ] = useState<HomepageBanner[]>([]);
+  ] = useState<HomepageBanner[]>(
+    () =>
+      initialSortedBanners.filter(
+        (banner) =>
+          banner.type === "main"
+      )
+  );
 
   const [
     rightTopBanners,
     setRightTopBanners,
-  ] = useState<HomepageBanner[]>([]);
+  ] = useState<HomepageBanner[]>(
+    () =>
+      initialSortedBanners.filter(
+        (banner) =>
+          banner.type ===
+          "sideTop"
+      )
+  );
 
   const [
     rightBottomBanners,
     setRightBottomBanners,
-  ] = useState<HomepageBanner[]>([]);
+  ] = useState<HomepageBanner[]>(
+    () =>
+      initialSortedBanners.filter(
+        (banner) =>
+          banner.type ===
+          "sideBottom"
+      )
+  );
 
   const [
     isLoadingBanners,
     setIsLoadingBanners,
-  ] = useState(true);
+  ] = useState(
+    !hasInitialBannerPayload
+  );
 
   const [
     bannerLoadError,
     setBannerLoadError,
-  ] = useState("");
+  ] = useState(
+    initialError || ""
+  );
 
   /* =======================================================
      CURRENT SLIDE STATES
@@ -181,6 +237,12 @@ export default function Hero() {
   ======================================================= */
 
   useEffect(() => {
+    if (
+      hasInitialBannerPayload
+    ) {
+      return;
+    }
+
     const controller =
       new AbortController();
 
@@ -196,7 +258,12 @@ const response = await fetch(
     method: "GET",
     headers: {
       Accept: "application/json",
-      "X-Tenant-Id": TENANT_ID,
+      ...(TENANT_ID
+        ? {
+            "X-Tenant-Id":
+              TENANT_ID,
+          }
+        : {}),
     },
     cache: "no-store",
     signal: controller.signal,
@@ -218,25 +285,13 @@ const response = await fetch(
             );
           }
 
-          const activeBanners =
-            Array.isArray(
-              data.homepageBanners
-            )
-              ? data.homepageBanners.filter(
-                  (banner) =>
-                    banner.active === true &&
-                    Boolean(
-                      banner._id
-                    ) &&
-                    Boolean(
-                      banner.image?.trim()
-                    )
-                )
-              : [];
-
           const sortedBanners =
-            sortBannersByOrder(
-              activeBanners
+            getActiveSortedBanners(
+              Array.isArray(
+                data.homepageBanners
+              )
+                ? data.homepageBanners
+                : []
             );
 
           setMainBanners(
@@ -301,7 +356,9 @@ const response = await fetch(
     return () => {
       controller.abort();
     };
-  }, []);
+  }, [
+    hasInitialBannerPayload,
+  ]);
 
   /* =======================================================
      DISPLAY BANNER ADAPTERS

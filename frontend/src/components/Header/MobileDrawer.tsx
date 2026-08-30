@@ -545,32 +545,11 @@ export default function MobileDrawer({
                       }
                       className="border-b border-gray-100 last:border-b-0"
                     >
-                      <button
-                        type="button"
-                        aria-expanded={
-                          isExpanded
-                        }
-                        onClick={() => {
-                          setExpandedCategoryId(
-                            (
-                              currentId,
-                            ) =>
-                              currentId ===
-                              category._id
-                                ? ""
-                                : category._id,
-                          );
-                        }}
+                      <div
                         className={`
                           flex
                           w-full
-                          items-center
-                          justify-between
-                          px-6
-                          py-3.5
-                          text-left
-                          text-[15px]
-                          font-semibold
+                          items-stretch
                           transition-colors
 
                           ${
@@ -580,26 +559,144 @@ export default function MobileDrawer({
                           }
                         `}
                       >
-                        <span>
-                          {
-                            category.name
-                          }
-                        </span>
+                        {/* =====================================
+                            MOBILE ONLY (<768px)
+                            Parent text = open parent category
+                            Arrow = expand / collapse subcategory
+                        ===================================== */}
 
-                        <ChevronRight
-                          size={17}
-                          className={`
-                            shrink-0
-                            transition-transform
-                            duration-200
-                            ${
-                              isExpanded
-                                ? "rotate-90"
-                                : ""
+                        <Link
+                          href={
+                            categoryHref
+                          }
+                          onClick={
+                            onClose
+                          }
+                          className="
+                            flex
+                            min-w-0
+                            flex-1
+                            items-center
+                            px-6
+                            py-3.5
+                            text-[15px]
+                            font-semibold
+                            md:hidden
+                          "
+                        >
+                          <span className="truncate">
+                            {
+                              category.name
                             }
-                          `}
-                        />
-                      </button>
+                          </span>
+                        </Link>
+
+                        <button
+                          type="button"
+                          aria-label={`${
+                            isExpanded
+                              ? "Hide"
+                              : "Show"
+                          } subcategories for ${
+                            category.name
+                          }`}
+                          aria-expanded={
+                            isExpanded
+                          }
+                          onClick={() => {
+                            setExpandedCategoryId(
+                              (
+                                currentId,
+                              ) =>
+                                currentId ===
+                                category._id
+                                  ? ""
+                                  : category._id,
+                            );
+                          }}
+                          className="
+                            flex
+                            w-14
+                            shrink-0
+                            items-center
+                            justify-center
+                            border-l
+                            border-gray-100
+                            md:hidden
+                          "
+                        >
+                          <ChevronRight
+                            size={17}
+                            className={`
+                              shrink-0
+                              transition-transform
+                              duration-200
+                              ${
+                                isExpanded
+                                  ? "rotate-90"
+                                  : ""
+                              }
+                            `}
+                          />
+                        </button>
+
+                        {/* =====================================
+                            TABLET ONLY (>=768px and <1024px)
+                            Keep the previous whole-row expand
+                            behavior unchanged.
+                        ===================================== */}
+
+                        <button
+                          type="button"
+                          aria-expanded={
+                            isExpanded
+                          }
+                          onClick={() => {
+                            setExpandedCategoryId(
+                              (
+                                currentId,
+                              ) =>
+                                currentId ===
+                                category._id
+                                  ? ""
+                                  : category._id,
+                            );
+                          }}
+                          className="
+                            hidden
+                            w-full
+                            items-center
+                            justify-between
+                            px-6
+                            py-3.5
+                            text-left
+                            text-[15px]
+                            font-semibold
+                            md:flex
+                            lg:hidden
+                          "
+                        >
+                          <span>
+                            {
+                              category.name
+                            }
+                          </span>
+
+                          <ChevronRight
+                            size={17}
+                            className={`
+                              shrink-0
+                              transition-transform
+                              duration-200
+                              ${
+                                isExpanded
+                                  ? "rotate-90"
+                                  : ""
+                              }
+                            `}
+                          />
+                        </button>
+                      </div>
 
                       {isExpanded && (
                         <div className="bg-gray-50/80 py-1">

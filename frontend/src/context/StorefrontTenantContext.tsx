@@ -98,6 +98,38 @@ function isLocalHostname(
   ].includes(hostname);
 }
 
+function getStoredAdminToken() {
+  if (
+    typeof window ===
+    "undefined"
+  ) {
+    return "";
+  }
+
+  const tokenKeys = [
+    "townmelaAdminToken",
+    "accessToken",
+    "token",
+    "authToken",
+    "jwt",
+  ];
+
+  for (
+    const key of tokenKeys
+  ) {
+    const value =
+      window.localStorage.getItem(
+        key,
+      );
+
+    if (value?.trim()) {
+      return value.trim();
+    }
+  }
+
+  return "";
+}
+
 function extractTenant(
   payload:
     | StorefrontTenantResponse
@@ -224,6 +256,79 @@ export function StorefrontTenantProvider({
             );
           }
 
+          /*
+           * LOCALHOST MUST LOAD THE REAL TENANT RECORD.
+           *
+           * Previously only {_id} was stored here, so fields such
+           * as tenant.storeName were unavailable and storefront
+           * components fell back to Header Business Name.
+           *
+           * We now load the actual tenant record so Store Name is
+           * available exactly like it is on a custom domain.
+           */
+
+          const token =
+            getStoredAdminToken();
+
+          const localResponse =
+            await fetch(
+              `${API_BASE_URL}/api/tenants/${encodeURIComponent(
+                localTenantId,
+              )}`,
+              {
+                method: "GET",
+                headers: {
+                  Accept:
+                    "application/json",
+
+                  ...(token
+                    ? {
+                        Authorization:
+                          `Bearer ${token}`,
+                      }
+                    : {}),
+
+                  "X-Tenant-Id":
+                    localTenantId,
+                },
+                cache:
+                  "no-store",
+                credentials:
+                  "include",
+              },
+            );
+
+          const localPayload =
+            (await localResponse
+              .json()
+              .catch(
+                () => null,
+              )) as
+              | StorefrontTenantResponse
+              | null;
+
+          const localTenant =
+            extractTenant(
+              localPayload,
+            );
+
+          if (
+            localResponse.ok &&
+            localPayload?.success &&
+            localTenant
+          ) {
+            setTenant(
+              localTenant,
+            );
+
+            return;
+          }
+
+          /*
+           * Keep localhost storefront usable even when the
+           * protected tenant-details route is unavailable.
+           * In that case only the tenant ID is retained.
+           */
           setTenant({
             _id:
               localTenantId,

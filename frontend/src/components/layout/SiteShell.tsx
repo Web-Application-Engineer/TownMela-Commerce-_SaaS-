@@ -15,6 +15,8 @@ import CartDrawer from "@/src/components/Cart/CartDrawer";
 
 import LoginRequiredNotice from "@/src/components/Auth/LoginRequiredNotice";
 
+import SocialContactWidget from "@/src/components/SocialContact/SocialContactWidget";
+
 /* =========================================================
    TYPES
 ========================================================= */
@@ -30,11 +32,13 @@ type SiteShellProps = {
    - Header
    - Footer
    - Cart Drawer
+   - Social Contact Widget
 
    Admin routes:
    - No storefront Header
    - No storefront Footer
    - No storefront Cart Drawer
+   - No Social Contact Widget
 ========================================================= */
 
 export default function SiteShell({
@@ -89,6 +93,17 @@ export default function SiteShell({
       </div>
 
       <CartDrawer />
+
+      {/* ===================================================
+          TENANT-SPECIFIC SOCIAL CONTACT WIDGET
+
+          - Public storefront only
+          - Uses current StorefrontTenantContext tenant ID
+          - Loads /api/social-contact-settings/public
+          - Mobile position stays above MobileBottomNav
+      =================================================== */}
+
+      <SocialContactWidget />
     </>
   );
 }

@@ -12,7 +12,7 @@ import TopSellingProducts from "./TopSellingProducts";
 import NewArrival from "./NewArrival";
 import WomenFashion from "./FashionAndStyle";
 import DynamicProductSection from "./DynamicProductSection";
-import CategoryShowcase from "./CategoryShowcase";
+import CategoryShowcase, { type ShowcaseConfig } from "./CategoryShowcase";
 
 import type { Product } from "../../types/product";
 
@@ -29,7 +29,7 @@ const API_BASE_URL = (
    TYPES
 ========================================================= */
 
-type HomepageProductSection = {
+export type HomepageProductSection = {
   id?: string;
   key: string;
   title: string;
@@ -59,17 +59,22 @@ type HomepageCategoryShowcaseItem = {
 type HomepageCategoryShowcaseResponse = {
   success: boolean;
   message?: string;
-  showcaseConfig?: {
-    showcases?: HomepageCategoryShowcaseItem[];
-    showcaseOne?: { title?: string };
-    showcaseTwo?: { title?: string };
-    showcaseThree?: { title?: string };
-  };
+  showcaseConfig?: ShowcaseConfig;
 };
 
-type HomepageProductSectionsProps = {
+export type HomepageProductSectionsProps = {
   initialProducts: Product[];
   initialError?: string | null;
+
+  /*
+   * Server-preloaded homepage layout.
+   * This removes the first client-side layout/showcase request.
+   */
+  initialSections?: HomepageProductSection[];
+  initialSectionsActive?: boolean;
+  initialCategoryShowcaseConfig?: ShowcaseConfig | null;
+  initialCategoryShowcaseError?: string | null;
+  initialLayoutLoaded?: boolean;
 };
 
 type HomepageLayoutItem =
@@ -196,7 +201,7 @@ const normalizeSectionKey = (value: string) =>
     .replace(/[^a-z0-9]+/g, "");
 
 const legacyShowcasesFromResponse = (
-  config: HomepageCategoryShowcaseResponse["showcaseConfig"],
+  config?: ShowcaseConfig | null,
 ): HomepageCategoryShowcaseItem[] => [
   {
     ...DEFAULT_SHOWCASES[0],
@@ -218,23 +223,110 @@ const legacyShowcasesFromResponse = (
   },
 ];
 
+const normalizeShowcaseItems = (
+  config?: ShowcaseConfig | null,
+): HomepageCategoryShowcaseItem[] => {
+  if (!config) {
+    return DEFAULT_SHOWCASES;
+  }
+
+  const dynamicShowcases =
+    Array.isArray(config.showcases)
+      ? config.showcases
+      : [];
+
+  return (
+    dynamicShowcases.length > 0
+      ? dynamicShowcases
+      : legacyShowcasesFromResponse(
+          config,
+        )
+  ).map(
+    (showcase, index) => ({
+      ...showcase,
+      key:
+        showcase.key?.trim() ||
+        `showcase-${index + 1}`,
+      title:
+        showcase.title?.trim() ||
+        `Category Showcase ${index + 1}`,
+      active:
+        showcase.active !== false,
+      order: Math.max(
+        1,
+        Number(showcase.order) ||
+          index + 1,
+      ),
+      layoutOrder: Math.max(
+        1,
+        Number(showcase.layoutOrder) ||
+          index * 2 + 2,
+      ),
+    }),
+  );
+};
+
+const normalizeProductSections = (
+  source?: HomepageProductSection[] | null,
+): HomepageProductSection[] => {
+  if (!Array.isArray(source) || source.length === 0) {
+    return DEFAULT_SECTIONS;
+  }
+
+  return source.map(
+    (section, index) => ({
+      ...section,
+      key: normalizeSectionKey(
+        section.key,
+      ),
+      active:
+        section.active !== false,
+      order: Math.max(
+        1,
+        Number(section.order) ||
+          index + 1,
+      ),
+      layoutOrder: Math.max(
+        1,
+        Number(section.layoutOrder) ||
+          index * 2 + 1,
+      ),
+    }),
+  );
+};
+
 /* =========================================================
    COMPONENT
 ========================================================= */
 
-export default function HomepageProductSections({
+export function HomepageProductSections({
   initialProducts,
   initialError = null,
+  initialSections,
+  initialSectionsActive = true,
+  initialCategoryShowcaseConfig,
+  initialCategoryShowcaseError = null,
+  initialLayoutLoaded = false,
 }: HomepageProductSectionsProps) {
   const [sections, setSections] =
-    useState<HomepageProductSection[]>(DEFAULT_SECTIONS);
+    useState<HomepageProductSection[]>(
+      () =>
+        normalizeProductSections(
+          initialSections,
+        ),
+    );
 
   const [sectionsActive, setSectionsActive] =
-    useState(true);
+    useState(
+      initialSectionsActive !== false,
+    );
 
   const [categoryShowcases, setCategoryShowcases] =
     useState<HomepageCategoryShowcaseItem[]>(
-      DEFAULT_SHOWCASES,
+      () =>
+        normalizeShowcaseItems(
+          initialCategoryShowcaseConfig,
+        ),
     );
 
   /* =======================================================
@@ -291,22 +383,9 @@ export default function HomepageProductSections({
           : [];
 
         setSections(
-          apiSections.length > 0
-            ? apiSections.map((section, index) => ({
-                ...section,
-                key: normalizeSectionKey(section.key),
-                active: section.active !== false,
-                order: Math.max(
-                  1,
-                  Number(section.order) || index + 1,
-                ),
-                layoutOrder: Math.max(
-                  1,
-                  Number(section.layoutOrder) ||
-                    index * 2 + 1,
-                ),
-              }))
-            : DEFAULT_SECTIONS,
+          normalizeProductSections(
+            apiSections,
+          ),
         );
       }
 
@@ -315,37 +394,10 @@ export default function HomepageProductSections({
         categoryPayload?.success &&
         categoryPayload.showcaseConfig
       ) {
-        const dynamicShowcases = Array.isArray(
-          categoryPayload.showcaseConfig.showcases,
-        )
-          ? categoryPayload.showcaseConfig.showcases
-          : [];
-
         setCategoryShowcases(
-          (dynamicShowcases.length > 0
-            ? dynamicShowcases
-            : legacyShowcasesFromResponse(
-                categoryPayload.showcaseConfig,
-              )
-          ).map((showcase, index) => ({
-            ...showcase,
-            key:
-              showcase.key?.trim() ||
-              `showcase-${index + 1}`,
-            title:
-              showcase.title?.trim() ||
-              `Category Showcase ${index + 1}`,
-            active: showcase.active !== false,
-            order: Math.max(
-              1,
-              Number(showcase.order) || index + 1,
-            ),
-            layoutOrder: Math.max(
-              1,
-              Number(showcase.layoutOrder) ||
-                index * 2 + 2,
-            ),
-          })),
+          normalizeShowcaseItems(
+            categoryPayload.showcaseConfig,
+          ),
         );
       }
     } catch (error) {
@@ -357,8 +409,19 @@ export default function HomepageProductSections({
   }, []);
 
   useEffect(() => {
+    /*
+     * page.tsx now preloads the first homepage layout response on
+     * the server. Skip the hydration-time duplicate request.
+     */
+    if (initialLayoutLoaded) {
+      return;
+    }
+
     void loadHomepageLayout();
-  }, [loadHomepageLayout]);
+  }, [
+    initialLayoutLoaded,
+    loadHomepageLayout,
+  ]);
 
   useEffect(() => {
     const refresh = () => {
@@ -542,9 +605,17 @@ export default function HomepageProductSections({
             showAllText="Show All"
             showAllLink="/categories"
             emptyMessage={`Select and save categories for ${item.showcase.title} from the Admin Dashboard.`}
+            initialConfig={
+              initialCategoryShowcaseConfig
+            }
+            initialError={
+              initialCategoryShowcaseError
+            }
           />
         );
       })}
     </>
   );
 }
+
+export default HomepageProductSections;

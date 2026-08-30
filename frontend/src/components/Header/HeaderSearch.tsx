@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import {
+  type CSSProperties,
   type FormEvent,
   type KeyboardEvent,
   useCallback,
@@ -100,6 +101,11 @@ export default function HeaderSearch() {
     setActiveSuggestionIndex,
   ] =
     useState(-1);
+
+  const [
+    mobileDropdownTop,
+    setMobileDropdownTop,
+  ] = useState(64);
 
   /* =======================================================
      DERIVED VALUES
@@ -476,6 +482,64 @@ export default function HeaderSearch() {
   ]);
 
   /* =======================================================
+     MOBILE DROPDOWN POSITION
+  ======================================================= */
+
+  useEffect(() => {
+    if (!isSearchOpen) {
+      return;
+    }
+
+    const updateMobileDropdownTop =
+      () => {
+        const container =
+          containerRef.current;
+
+        if (!container) {
+          return;
+        }
+
+        const rect =
+          container.getBoundingClientRect();
+
+        setMobileDropdownTop(
+          Math.max(
+            0,
+            Math.ceil(
+              rect.bottom + 8,
+            ),
+          ),
+        );
+      };
+
+    updateMobileDropdownTop();
+
+    window.addEventListener(
+      "resize",
+      updateMobileDropdownTop,
+    );
+
+    window.addEventListener(
+      "scroll",
+      updateMobileDropdownTop,
+      true,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "resize",
+        updateMobileDropdownTop,
+      );
+
+      window.removeEventListener(
+        "scroll",
+        updateMobileDropdownTop,
+        true,
+      );
+    };
+  }, [isSearchOpen]);
+
+  /* =======================================================
      OUTSIDE CLICK
   ======================================================= */
 
@@ -652,27 +716,43 @@ export default function HeaderSearch() {
           <div
             id="townmela-search-suggestions"
             role="listbox"
+            style={
+              {
+                "--mobile-search-dropdown-top":
+                  `${mobileDropdownTop}px`,
+              } as CSSProperties
+            }
             className="
-              absolute
-              left-0
-              right-0
-              top-full
+              fixed
+              left-1/2
+              top-[var(--mobile-search-dropdown-top)]
               z-[200]
-              mt-2
+              w-[calc(100vw-24px)]
+              max-w-[520px]
+              -translate-x-1/2
               overflow-hidden
-              rounded-2xl
+              rounded-xl
               border
               border-gray-200
               bg-white
               text-[#0B1F3A]
               shadow-2xl
+              md:absolute
+              md:left-0
+              md:right-0
+              md:top-full
+              md:mt-2
+              md:w-auto
+              md:max-w-none
+              md:translate-x-0
+              md:rounded-2xl
             "
           >
             {/* =============================================
                 SUGGESTION HEADER
             ============================================= */}
 
-            <div className="border-b border-gray-100 px-4 py-3">
+            <div className="border-b border-gray-100 px-3 py-2.5 sm:px-4 sm:py-3">
               <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-gray-400">
                 Product Suggestions
               </p>
@@ -683,7 +763,7 @@ export default function HeaderSearch() {
             ============================================= */}
 
             {isSearchLoading ? (
-              <div className="flex items-center gap-3 px-4 py-5 text-sm font-semibold text-gray-500">
+              <div className="flex items-center gap-3 px-3 py-4 text-sm font-semibold text-gray-500 sm:px-4 sm:py-5">
                 <span className="h-5 w-5 animate-spin rounded-full border-2 border-orange-200 border-t-[#FF6900]" />
 
                 Searching products...
@@ -694,7 +774,7 @@ export default function HeaderSearch() {
                   RESULTS
               =========================================== */
 
-              <div className="max-h-[360px] overflow-y-auto py-1">
+              <div className="max-h-[min(42dvh,360px)] overflow-y-auto overscroll-contain py-1 md:max-h-[360px]">
                 {visibleSearchSuggestions.map(
                   (
                     product,
@@ -728,11 +808,14 @@ export default function HeaderSearch() {
                           flex
                           w-full
                           items-center
-                          gap-3
-                          px-4
-                          py-3
+                          gap-2.5
+                          px-3
+                          py-2.5
                           text-left
                           transition
+                          sm:gap-3
+                          sm:px-4
+                          sm:py-3
 
                           ${
                             isActive
@@ -743,7 +826,7 @@ export default function HeaderSearch() {
                       >
                         {/* PRODUCT IMAGE */}
 
-                        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+                        <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 sm:h-12 sm:w-12 sm:rounded-xl">
                           {product.image ? (
                             <Image
                               src={
@@ -766,14 +849,14 @@ export default function HeaderSearch() {
                         {/* PRODUCT INFO */}
 
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-extrabold text-[#0B1F3A]">
+                          <p className="truncate text-[13px] font-extrabold leading-5 text-[#0B1F3A] sm:text-sm">
                             {
                               product.name
                             }
                           </p>
 
-                          <div className="mt-1 flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-extrabold text-[#FF6900]">
+                          <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 sm:mt-1">
+                            <span className="whitespace-nowrap text-[13px] font-extrabold text-[#FF6900] sm:text-sm">
                               {formatPrice(
                                 product.price,
                               )}
@@ -787,7 +870,7 @@ export default function HeaderSearch() {
                                 Number(
                                   product.price,
                                 ) && (
-                                <span className="text-xs text-gray-400 line-through">
+                                <span className="whitespace-nowrap text-[11px] text-gray-400 line-through sm:text-xs">
                                   {formatPrice(
                                     product.oldPrice,
                                   )}
@@ -810,7 +893,7 @@ export default function HeaderSearch() {
                   EMPTY RESULT
               =========================================== */
 
-              <div className="px-4 py-5 text-sm font-semibold text-gray-500">
+              <div className="px-3 py-4 text-sm font-semibold text-gray-500 sm:px-4 sm:py-5">
                 No matching products
                 found.
               </div>
@@ -833,9 +916,11 @@ export default function HeaderSearch() {
                 border-t
                 border-gray-100
                 bg-orange-50
-                px-4
-                py-3
+                px-3
+                py-2.5
                 text-left
+                sm:px-4
+                sm:py-3
                 text-sm
                 font-extrabold
                 text-[#FF6900]

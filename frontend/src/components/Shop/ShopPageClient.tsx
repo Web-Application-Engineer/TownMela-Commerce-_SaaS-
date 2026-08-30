@@ -24,6 +24,10 @@ import {
 
 import ProductGrid from "../Products/ProductGrid";
 
+import {
+  useStorefrontTenant,
+} from "@/src/context/StorefrontTenantContext";
+
 import type {
   Product,
   ProductsApiResponse,
@@ -841,6 +845,20 @@ type ShopPageClientProps = {
 export default function ShopPageClient({
   categorySlug,
 }: ShopPageClientProps) {
+  const {
+    tenant,
+  } = useStorefrontTenant();
+
+  /*
+   * IMPORTANT:
+   * This breadcrumb shows ONLY the Tenant Store Name.
+   * Business Name / Header Business Name are intentionally
+   * not used here.
+   */
+  const storefrontName =
+    tenant?.storeName?.trim() ||
+    "TownMela";
+
   const [
     products,
     setProducts,
@@ -1762,34 +1780,41 @@ headers: {
         <div className="mx-auto w-full max-w-[1450px]">
           {/* Page Header */}
 
-<div className="mb-5 flex w-full flex-nowrap items-center justify-between gap-3 overflow-x-auto">
-  {/* Left Pills */}
+<div className="mb-5 flex w-full min-w-0 items-center gap-1.5 overflow-hidden sm:gap-3">
+  {/* ===============================================
+      RESPONSIVE TENANT / CATEGORY HEADER
+  =============================================== */}
 
-  <div className="flex shrink-0 flex-nowrap items-center gap-2 whitespace-nowrap">
-    <span className="rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-bold tracking-[0.14em] text-[#FF6900]">
-      TownMela
+  <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
+    <span
+      title={storefrontName}
+      className="max-w-[92px] shrink-0 truncate whitespace-nowrap rounded-full border border-orange-200 bg-orange-50 px-2 py-1.5 text-[10px] font-bold tracking-[0.08em] text-[#FF6900] sm:max-w-[180px] sm:px-3 sm:text-xs sm:tracking-[0.14em]"
+    >
+      {storefrontName}
     </span>
 
-    <span className="text-sm font-semibold text-blue-500">
+    <span className="shrink-0 text-xs font-semibold text-blue-500 sm:text-sm">
       /
     </span>
 
-<h1 className="rounded-full border border-orange-500 bg-[#4C5B6F] px-3 py-1.5 text-xs font-bold tracking-[0.14em] text-white">
-  {pageTitle}
-</h1>
-
+    <h1
+      title={pageTitle}
+      className="min-w-0 flex-1 truncate rounded-full border border-orange-500 bg-[#4C5B6F] px-2 py-1.5 text-center text-[10px] font-bold tracking-[0.06em] text-white sm:flex-none sm:px-3 sm:text-left sm:text-xs sm:tracking-[0.14em]"
+    >
+      {pageTitle}
+    </h1>
   </div>
 
   {/* Product Count */}
 
-<div className="shrink-0 whitespace-nowrap rounded-full border border-orange-500 bg-[#4C5B6F] px-3 py-1.5 text-xs font-bold tracking-[0.14em] text-white">
-  <span className="tabular-nums">
-    {visibleProducts.length}
-  </span>{" "}
-  {visibleProducts.length === 1
-    ? "Product"
-    : "Products"}
-</div>
+  <div className="shrink-0 whitespace-nowrap rounded-full border border-orange-500 bg-[#4C5B6F] px-2 py-1.5 text-[10px] font-bold tracking-[0.06em] text-white sm:px-3 sm:text-xs sm:tracking-[0.14em]">
+    <span className="tabular-nums">
+      {visibleProducts.length}
+    </span>{" "}
+    {visibleProducts.length === 1
+      ? "Product"
+      : "Products"}
+  </div>
 </div>
 
           {/* Shop Layout */}

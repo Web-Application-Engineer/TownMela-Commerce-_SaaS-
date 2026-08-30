@@ -27,6 +27,10 @@ const PopularCategory = require(
   "../../models/PopularCategory"
 );
 
+const SocialContactSetting = require(
+  "../../models/SocialContactSetting"
+);
+
 /*
  * Footer settings already exist in the project, but older
  * project snapshots used slightly different filename casing.
@@ -353,6 +357,7 @@ const copyMasterTemplateToTenant =
       popularCategories: 0,
       footerContentPages: 0,
       footerSettings: 0,
+      socialContactSettings: 0,
     };
 
     try {
@@ -648,6 +653,111 @@ const copyMasterTemplateToTenant =
       } else {
         logCopyStep(
           "Master footer settings not found; footer settings copy skipped"
+        );
+      }
+
+      /* =====================================================
+         COPY SOCIAL CONTACT SETTINGS
+
+         A new tenant receives a complete one-time snapshot
+         of the TownMela master tenant's Social Contact
+         configuration.
+
+         This includes:
+         - Messenger / WhatsApp / Phone
+         - Facebook / Instagram / YouTube
+         - individual enable / disable states
+         - individual social colors
+         - panel / border / main button colors
+         - label / hover / pulse colors
+         - main widget active state and label text
+
+         The destination record belongs only to the new tenant.
+         No live relationship is created with the master tenant.
+      ===================================================== */
+
+      currentStage =
+        "copy_social_contact_settings";
+
+      /*
+       * Ensure the master tenant always has a complete Social
+       * Contact record. On the first installation this creates
+       * the master record from the model defaults that mirror
+       * the existing Easy Contact WordPress widget.
+       */
+      const masterSocialContactSetting =
+        await SocialContactSetting.findOneAndUpdate(
+          {
+            tenant:
+              masterTenantId,
+          },
+          {
+            $setOnInsert: {
+              tenant:
+                masterTenantId,
+            },
+          },
+          {
+            new: true,
+            upsert: true,
+            runValidators: true,
+            setDefaultsOnInsert:
+              true,
+          }
+        ).lean();
+
+      const existingSocialContactSettingCount =
+        await SocialContactSetting.countDocuments(
+          {
+            tenant:
+              newTenantId,
+          }
+        );
+
+      if (
+        existingSocialContactSettingCount >
+        0
+      ) {
+        throw createProvisioningError(
+          "Destination tenant already contains social contact settings",
+          "DESTINATION_SOCIAL_CONTACT_SETTING_EXISTS",
+          {
+            existingSocialContactSettingCount,
+          }
+        );
+      }
+
+      if (
+        masterSocialContactSetting
+      ) {
+        const socialContactSnapshot =
+          removeDocumentFields(
+            masterSocialContactSetting
+          );
+
+        delete socialContactSnapshot.updatedBy;
+        delete socialContactSnapshot.createdBy;
+        delete socialContactSnapshot.lastModifiedBy;
+
+        await SocialContactSetting.create({
+          ...socialContactSnapshot,
+
+          tenant:
+            newTenantId,
+
+          updatedBy:
+            null,
+        });
+
+        copySummary.socialContactSettings =
+          1;
+
+        logCopyStep(
+          "Social contact settings copied",
+          {
+            count:
+              copySummary.socialContactSettings,
+          }
         );
       }
 
@@ -1177,6 +1287,10 @@ const removeTenantTemplateData =
       ),
 
       PopularCategory.deleteMany({
+        tenant: tenantId,
+      }),
+
+      SocialContactSetting.deleteMany({
         tenant: tenantId,
       }),
     ];

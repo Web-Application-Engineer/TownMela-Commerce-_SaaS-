@@ -27,7 +27,7 @@ type CategoryReference = {
   thumbnail?: string;
 };
 
-type PopularCategoryApiItem = {
+export type PopularCategoryApiItem = {
   _id?: string;
   id?: string | number;
   displayName?: string;
@@ -63,6 +63,11 @@ type PopularCategory = {
   order: number;
 };
 
+type PopularCategoriesProps = {
+  initialItems?: PopularCategoryApiItem[];
+  initialError?: string | null;
+};
+
 /* =========================================================
    CONFIGURATION
 ========================================================= */
@@ -74,6 +79,9 @@ const API_BASE_URL = (
 
 const POPULAR_CATEGORIES_ENDPOINT =
   `${API_BASE_URL}/api/popular-categories?active=true`;
+
+const TENANT_ID =
+  process.env.NEXT_PUBLIC_TENANT_ID ?? "";
 
 const FALLBACK_IMAGE =
   "/images/category-images/category-placeholder.webp";
@@ -163,14 +171,66 @@ function normalizePopularCategory(
   };
 }
 
+function normalizePopularCategories(
+  items: PopularCategoryApiItem[]
+): PopularCategory[] {
+  return items
+    .filter(
+      (item) =>
+        item.active !== false
+    )
+    .map(
+      normalizePopularCategory
+    )
+    .filter(
+      (
+        item
+      ): item is PopularCategory =>
+        item !== null
+    )
+    .sort(
+      (
+        firstItem,
+        secondItem
+      ) => {
+        if (
+          firstItem.order !==
+          secondItem.order
+        ) {
+          return (
+            firstItem.order -
+            secondItem.order
+          );
+        }
+
+        return firstItem.name.localeCompare(
+          secondItem.name
+        );
+      }
+    );
+}
+
 /* =========================================================
    COMPONENT
 ========================================================= */
 
-export default function PopularCategories() {
+export default function PopularCategories({
+  initialItems,
+  initialError = null,
+}: PopularCategoriesProps) {
+  const hasInitialPayload =
+    initialItems !== undefined;
+
   const [categories, setCategories] = useState<
     PopularCategory[]
-  >([]);
+  >(
+    () =>
+      hasInitialPayload
+        ? normalizePopularCategories(
+            initialItems
+          )
+        : []
+  );
 
   const [currentIndex, setCurrentIndex] =
     useState(0);
@@ -182,10 +242,14 @@ export default function PopularCategories() {
     useState(false);
 
   const [isLoading, setIsLoading] =
-    useState(true);
+    useState(
+      !hasInitialPayload
+    );
 
   const [errorMessage, setErrorMessage] =
-    useState("");
+    useState(
+      initialError || ""
+    );
 
   const [failedImages, setFailedImages] =
     useState<Record<string, boolean>>({});
@@ -206,6 +270,12 @@ export default function PopularCategories() {
             method: "GET",
             headers: {
               Accept: "application/json",
+              ...(TENANT_ID
+                ? {
+                    "X-Tenant-Id":
+                      TENANT_ID,
+                  }
+                : {}),
             },
             cache: "no-store",
           }
@@ -230,31 +300,11 @@ export default function PopularCategories() {
             ? result.data
             : [];
 
-        const normalizedCategories = sourceItems
-          .filter((item) => item.active !== false)
-          .map(normalizePopularCategory)
-          .filter(
-            (
-              item
-            ): item is PopularCategory =>
-              item !== null
+        setCategories(
+          normalizePopularCategories(
+            sourceItems
           )
-          .sort((firstItem, secondItem) => {
-            if (
-              firstItem.order !== secondItem.order
-            ) {
-              return (
-                firstItem.order -
-                secondItem.order
-              );
-            }
-
-            return firstItem.name.localeCompare(
-              secondItem.name
-            );
-          });
-
-        setCategories(normalizedCategories);
+        );
         setCurrentIndex(0);
       } catch (error) {
         setCategories([]);
@@ -270,8 +320,15 @@ export default function PopularCategories() {
     }, []);
 
   useEffect(() => {
+    if (hasInitialPayload) {
+      return;
+    }
+
     void loadPopularCategories();
-  }, [loadPopularCategories]);
+  }, [
+    hasInitialPayload,
+    loadPopularCategories,
+  ]);
 
   /* =======================================================
      RESPONSIVE ITEMS PER VIEW

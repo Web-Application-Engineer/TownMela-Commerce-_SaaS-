@@ -136,10 +136,6 @@ const homepageProductSectionSettingRoutes = loadRouter(
   "./routes/homepageProductSectionSettingRoutes"
 );
 
-const stockClearanceRoutes = loadRouter(
-  "./routes/stockClearanceRoutes"
-);
-
 const supplierRoutes = loadRouter(
   "./routes/supplierRoutes"
 );
@@ -184,6 +180,10 @@ const footerSettingRoutes = require(
 
 const checkoutSettingRoutes = loadRouter(
   "./routes/checkoutSettingRoutes"
+);
+
+const socialContactSettingRoutes = loadRouter(
+  "./routes/socialContactSettingRoutes"
 );
 
 /* =========================================================
@@ -569,11 +569,6 @@ app.use(
   homepageProductSectionSettingRoutes
 );
 
-app.use(
-  "/api/stock-clearance",
-  stockClearanceRoutes
-);
-
 
 /* =========================================================
    SUPPLIER AND PURCHASE ROUTES
@@ -637,6 +632,11 @@ app.use(
 app.use(
   "/api/checkout-settings",
   checkoutSettingRoutes
+);
+
+app.use(
+  "/api/social-contact-settings",
+  socialContactSettingRoutes
 );
 
 /* =========================================================

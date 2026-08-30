@@ -643,11 +643,13 @@ export default function Header() {
               </div>
 
               {settings.cartEnabled && (
-                <CartButton
-                  mobile
-                  cartCount={cartCount}
-                  onClick={openCartDrawer}
-                />
+                <div className="hidden md:contents">
+                  <CartButton
+                    mobile
+                    cartCount={cartCount}
+                    onClick={openCartDrawer}
+                  />
+                </div>
               )}
 
               <div className="flex shrink-0 items-center justify-end">
