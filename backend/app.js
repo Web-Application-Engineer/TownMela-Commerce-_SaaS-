@@ -186,6 +186,10 @@ const socialContactSettingRoutes = loadRouter(
   "./routes/socialContactSettingRoutes"
 );
 
+const stockClearanceRoutes = loadRouter(
+  "./routes/stockClearanceRoutes"
+);
+
 /* =========================================================
    EXPRESS APPLICATION
 ========================================================= */
@@ -637,6 +641,15 @@ app.use(
 app.use(
   "/api/social-contact-settings",
   socialContactSettingRoutes
+);
+
+/* =========================================================
+   STOCK CLEARANCE ROUTES
+========================================================= */
+
+app.use(
+  "/api/stock-clearance",
+  stockClearanceRoutes
 );
 
 /* =========================================================

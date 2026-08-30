@@ -1,4 +1,4 @@
-"use client";
+
 
 import type {
   ElementType,
@@ -276,6 +276,22 @@ const menuItems:
 
     href:
       "/admin/coupons",
+
+    icon:
+      TicketPercent,
+
+    roles: [
+      "admin",
+      "superadmin",
+    ],
+  },
+
+  {
+    label:
+      "Stock Clearance",
+
+    href:
+      "/admin/stock-clearance",
 
     icon:
       TicketPercent,
