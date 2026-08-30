@@ -497,7 +497,7 @@ export default function Footer() {
         }
       `}</style>
 
-      <footer className="relative ml-2 mr-2 overflow-hidden bg-black text-white">
+      <footer className="hidden md:block relative ml-2 mr-2 overflow-hidden bg-black text-white">
       <div
         className="relative bg-cover bg-center bg-no-repeat"
         style={{

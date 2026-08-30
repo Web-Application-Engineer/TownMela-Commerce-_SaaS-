@@ -36,6 +36,7 @@ import DesktopCategoryNav from "./DesktopCategoryNav";
 import HeaderSearch from "./HeaderSearch";
 import Logo from "./Logo";
 import MobileDrawer from "./MobileDrawer";
+import MobileBottomNav from "./MobileBottomNav";
 
 import {
   API_BASE_URL,
@@ -422,6 +423,46 @@ export default function Header() {
     };
   }, []);
 
+  /* =======================================================
+     KEEP MAIN MOBILE HEADER VISIBLE WHILE DRAWER IS OPEN
+  ======================================================= */
+
+  useEffect(() => {
+    if (!isMobileDrawerOpen) {
+      return;
+    }
+
+    const frameId =
+      window.requestAnimationFrame(() => {
+        const mainHeader =
+          mainHeaderRef.current;
+
+        if (!mainHeader) {
+          return;
+        }
+
+        const headerHeight =
+          mainHeader
+            .getBoundingClientRect()
+            .height;
+
+        setMobileDrawerTop(
+          Math.max(
+            0,
+            Math.ceil(
+              headerHeight,
+            ),
+          ),
+        );
+      });
+
+    return () => {
+      window.cancelAnimationFrame(
+        frameId,
+      );
+    };
+  }, [isMobileDrawerOpen]);
+
   return (
     <>
       <header
@@ -535,7 +576,11 @@ export default function Header() {
 
         <div
           ref={mainHeaderRef}
-          className="w-full bg-[#17181d]"
+          className={
+            isMobileDrawerOpen
+              ? "fixed inset-x-0 top-0 z-[70] w-full bg-[#17181d] shadow"
+              : "w-full bg-[#17181d]"
+          }
         >
           <div className="mx-auto w-full max-w-[1490px]">
             <div
@@ -657,6 +702,8 @@ export default function Header() {
           )
         }
       />
+
+      <MobileBottomNav />
     </>
   );
 }
