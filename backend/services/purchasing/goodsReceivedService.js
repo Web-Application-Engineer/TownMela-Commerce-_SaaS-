@@ -23,7 +23,7 @@ const Supplier = require(
 );
 
 const Product = require(
-  "../../models/Product"
+  "../../models/product"
 );
 
 let Warehouse = null;

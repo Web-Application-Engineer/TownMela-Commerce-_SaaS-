@@ -7,7 +7,7 @@ const StockClearanceCampaign = require(
 );
 
 const Product = require(
-  "../models/Product"
+  "../models/product"
 );
 
 /* =========================================================

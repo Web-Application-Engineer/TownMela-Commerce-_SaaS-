@@ -1,7 +1,8 @@
 "use strict";
 
 const express = require("express");
-const mongoose = require("mongoose");
+
+const resolvePublicTenant = require("../middleware/resolvePublicTenant");
 
 const {
   createProduct,
@@ -26,29 +27,6 @@ const {
 const upload = require("../middleware/uploadMiddleware");
 
 const router = express.Router();
-
-const resolvePublicTenant = (req, res, next) => {
-  const tenantId = String(req.get("X-Tenant-Id") || "").trim();
-
-  if (!tenantId) {
-    return res.status(400).json({
-      success: false,
-      code: "TENANT_CONTEXT_REQUIRED",
-      message: "X-Tenant-Id header is required",
-    });
-  }
-
-  if (!mongoose.Types.ObjectId.isValid(tenantId)) {
-    return res.status(400).json({
-      success: false,
-      code: "INVALID_TENANT_ID",
-      message: "Invalid tenant ID",
-    });
-  }
-
-  req.tenantId = tenantId;
-  return next();
-};
 
 const adminProductAccess = [
   protect,

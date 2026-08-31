@@ -31,6 +31,10 @@ const SocialContactSetting = require(
   "../../models/SocialContactSetting"
 );
 
+const HeaderSetting = require(
+  "../../models/HeaderSetting"
+);
+
 /*
  * Footer settings already exist in the project, but older
  * project snapshots used slightly different filename casing.
@@ -159,6 +163,170 @@ const getFooterSettingTenantField =
     );
   };
 
+/*
+ * Some settings models have used slightly different filename
+ * casing across project revisions. Resolve them from already
+ * registered Mongoose models first, then try known filenames.
+ *
+ * These are optional only for backward compatibility with old
+ * deployments. On the current TownMela build they are expected
+ * to resolve and will be copied automatically.
+ */
+const OPTIONAL_TENANT_MODEL_CONFIGS = {
+  homepageProductSections: {
+    label:
+      "Homepage product section settings",
+    registeredPattern:
+      /homepage.*product.*section.*setting/i,
+    candidates: [
+      "../../models/HomepageProductSectionSetting",
+      "../../models/homepageProductSectionSetting",
+      "../../models/HomepageProductSectionSettings",
+      "../../models/homepageProductSectionSettings",
+      "../../models/HomepageProductSectionSettingModel",
+      "../../models/homepageProductSectionSettingModel",
+    ],
+  },
+
+  checkoutSettings: {
+    label:
+      "Checkout settings",
+    registeredPattern:
+      /checkout.*setting/i,
+    candidates: [
+      "../../models/CheckoutSetting",
+      "../../models/checkoutSetting",
+      "../../models/CheckoutSettings",
+      "../../models/checkoutSettings",
+      "../../models/CheckoutSettingModel",
+      "../../models/checkoutSettingModel",
+    ],
+  },
+};
+
+const modelHasTenantField = (
+  model
+) =>
+  Boolean(
+    model?.schema?.path(
+      "tenant"
+    ) ||
+      model?.schema?.path(
+        "tenantId"
+      )
+  );
+
+const resolveOptionalTenantModel = (
+  config
+) => {
+    const registeredModel =
+      Object.values(
+        mongoose.models
+      ).find((model) => {
+        const modelName =
+          String(
+            model?.modelName ||
+              ""
+          );
+
+        return (
+          config.registeredPattern.test(
+            modelName
+          ) &&
+          modelHasTenantField(
+            model
+          )
+        );
+      }) || null;
+
+    if (registeredModel) {
+      return registeredModel;
+    }
+
+    for (
+      const candidate of
+      config.candidates
+    ) {
+      try {
+        const candidateModel =
+          require(candidate);
+
+        if (
+          candidateModel &&
+          typeof candidateModel.findOne ===
+            "function" &&
+          candidateModel.schema &&
+          modelHasTenantField(
+            candidateModel
+          )
+        ) {
+          return candidateModel;
+        }
+      } catch (error) {
+        const isMissingCandidate =
+          error?.code ===
+            "MODULE_NOT_FOUND" &&
+          String(
+            error?.message || ""
+          ).includes(
+            candidate
+          );
+
+        if (!isMissingCandidate) {
+          throw error;
+        }
+      }
+    }
+
+    return (
+      Object.values(
+        mongoose.models
+      ).find((model) => {
+        const modelName =
+          String(
+            model?.modelName ||
+              ""
+          );
+
+        return (
+          config.registeredPattern.test(
+            modelName
+          ) &&
+          modelHasTenantField(
+            model
+          )
+        );
+      }) || null
+    );
+  };
+
+const getModelTenantField = (
+  model,
+  label =
+    "Tenant settings"
+) => {
+    if (
+      model?.schema?.path(
+        "tenant"
+      )
+    ) {
+      return "tenant";
+    }
+
+    if (
+      model?.schema?.path(
+        "tenantId"
+      )
+    ) {
+      return "tenantId";
+    }
+
+    throw createProvisioningError(
+      `${label} model does not contain a tenant field`,
+      "TENANT_SETTING_FIELD_NOT_FOUND"
+    );
+  };
+
 /* =========================================================
    CONFIGURATION
 ========================================================= */
@@ -229,6 +397,7 @@ const removeDocumentFields = (
   delete result.createdAt;
   delete result.updatedAt;
   delete result.tenant;
+  delete result.tenantId;
 
   return result;
 };
@@ -255,32 +424,137 @@ const remapShowcaseSection = (
   const plainSection =
     toPlainObject(section);
 
-  return {
-    title:
-      typeof plainSection.title ===
-      "string"
-        ? plainSection.title.trim()
-        : "",
+  const remappedSection = {
+    ...plainSection,
+  };
 
-    categoryOne:
+  /*
+   * Let Mongoose generate independent subdocument IDs for
+   * the destination tenant.
+   */
+  delete remappedSection._id;
+  delete remappedSection.id;
+
+  if (
+    Object.prototype.hasOwnProperty.call(
+      plainSection,
+      "categoryOne"
+    )
+  ) {
+    remappedSection.categoryOne =
       remapCategoryId(
         plainSection.categoryOne,
         categoryIdMap
-      ),
+      );
+  }
 
-    categoryTwo:
+  if (
+    Object.prototype.hasOwnProperty.call(
+      plainSection,
+      "categoryTwo"
+    )
+  ) {
+    remappedSection.categoryTwo =
       remapCategoryId(
         plainSection.categoryTwo,
         categoryIdMap
-      ),
+      );
+  }
 
-    categoryThree:
+  if (
+    Object.prototype.hasOwnProperty.call(
+      plainSection,
+      "categoryThree"
+    )
+  ) {
+    remappedSection.categoryThree =
       remapCategoryId(
         plainSection.categoryThree,
         categoryIdMap
-      ),
-  };
+      );
+  }
+
+  return remappedSection;
 };
+
+const copySingleTenantSettingSnapshot =
+  async ({
+    Model,
+    masterTenantId,
+    newTenantId,
+    label,
+    duplicateCode,
+  }) => {
+    if (!Model) {
+      logCopyStep(
+        `${label} model not found; copy skipped`
+      );
+
+      return 0;
+    }
+
+    const tenantField =
+      getModelTenantField(
+        Model,
+        label
+      );
+
+    const masterSetting =
+      await Model.findOne({
+        [tenantField]:
+          masterTenantId,
+      }).lean();
+
+    if (!masterSetting) {
+      logCopyStep(
+        `Master ${label.toLowerCase()} not found; copy skipped`
+      );
+
+      return 0;
+    }
+
+    const existingCount =
+      await Model.countDocuments({
+        [tenantField]:
+          newTenantId,
+      });
+
+    if (existingCount > 0) {
+      throw createProvisioningError(
+        `Destination tenant already contains ${label.toLowerCase()}`,
+        duplicateCode,
+        {
+          existingCount,
+        }
+      );
+    }
+
+    const snapshot =
+      removeDocumentFields(
+        masterSetting
+      );
+
+    delete snapshot[
+      tenantField
+    ];
+
+    /*
+     * Audit metadata belongs to the master admin and must not
+     * be transferred as ownership metadata.
+     */
+    delete snapshot.createdBy;
+    delete snapshot.updatedBy;
+    delete snapshot.lastModifiedBy;
+
+    await Model.create({
+      ...snapshot,
+
+      [tenantField]:
+        newTenantId,
+    });
+
+    return 1;
+  };
 
 const logCopyStep = (
   label,
@@ -356,8 +630,11 @@ const copyMasterTemplateToTenant =
       homepageCategoryShowcases: 0,
       popularCategories: 0,
       footerContentPages: 0,
+      headerSettings: 0,
       footerSettings: 0,
+      checkoutSettings: 0,
       socialContactSettings: 0,
+      homepageProductSectionSettings: 0,
     };
 
     try {
@@ -555,6 +832,47 @@ const copyMasterTemplateToTenant =
       );
 
       /* =====================================================
+         COPY HEADER SETTINGS
+
+         Copy the master header's layout/menu/toggles as a
+         one-time snapshot. The existing tenantService
+         ensure_header_setting step runs immediately after this
+         template copy and intentionally replaces identity fields
+         such as Business Name, logo, phone and email with the
+         new tenant's own values while preserving copied menus
+         and header behavior.
+      ===================================================== */
+
+      currentStage =
+        "copy_header_settings";
+
+      copySummary.headerSettings =
+        await copySingleTenantSettingSnapshot(
+          {
+            Model:
+              HeaderSetting,
+
+            masterTenantId,
+
+            newTenantId,
+
+            label:
+              "Header settings",
+
+            duplicateCode:
+              "DESTINATION_HEADER_SETTING_EXISTS",
+          }
+        );
+
+      logCopyStep(
+        "Header settings copied",
+        {
+          count:
+            copySummary.headerSettings,
+        }
+      );
+
+      /* =====================================================
          COPY FOOTER SETTINGS + FOOTER MENUS
 
          This copies the complete saved footer-settings
@@ -655,6 +973,49 @@ const copyMasterTemplateToTenant =
           "Master footer settings not found; footer settings copy skipped"
         );
       }
+
+      /* =====================================================
+         COPY CHECKOUT SETTINGS
+
+         Checkout configuration is storefront configuration,
+         not transactional data. Copy it as a one-time snapshot
+         so new tenants start with the same checkout behavior.
+      ===================================================== */
+
+      currentStage =
+        "copy_checkout_settings";
+
+      const CheckoutSetting =
+        resolveOptionalTenantModel(
+          OPTIONAL_TENANT_MODEL_CONFIGS
+            .checkoutSettings
+        );
+
+      copySummary.checkoutSettings =
+        await copySingleTenantSettingSnapshot(
+          {
+            Model:
+              CheckoutSetting,
+
+            masterTenantId,
+
+            newTenantId,
+
+            label:
+              "Checkout settings",
+
+            duplicateCode:
+              "DESTINATION_CHECKOUT_SETTING_EXISTS",
+          }
+        );
+
+      logCopyStep(
+        "Checkout settings copy completed",
+        {
+          count:
+            copySummary.checkoutSettings,
+        }
+      );
 
       /* =====================================================
          COPY SOCIAL CONTACT SETTINGS
@@ -849,11 +1210,102 @@ const copyMasterTemplateToTenant =
         copySummary.categories =
           copiedCategories.length;
 
+        /*
+         * Category.parent / parentCategory contains IDs from
+         * the master tenant. Remap those references after all
+         * destination category IDs are known so subcategories
+         * remain attached to the correct copied parent.
+         */
+        currentStage =
+          "remap_category_parents";
+
+        const parentUpdateTasks =
+          [];
+
+        copiedCategories.forEach(
+          (
+            copiedCategory,
+            index
+          ) => {
+            const masterCategory =
+              masterCategories[
+                index
+              ];
+
+            const updateFields =
+              {};
+
+            if (
+              Category.schema.path(
+                "parent"
+              ) &&
+              masterCategory
+                ?.parent
+            ) {
+              updateFields.parent =
+                remapCategoryId(
+                  masterCategory.parent,
+                  categoryIdMap
+                );
+            }
+
+            if (
+              Category.schema.path(
+                "parentCategory"
+              ) &&
+              masterCategory
+                ?.parentCategory
+            ) {
+              updateFields.parentCategory =
+                remapCategoryId(
+                  masterCategory
+                    .parentCategory,
+                  categoryIdMap
+                );
+            }
+
+            if (
+              Object.keys(
+                updateFields
+              ).length >
+              0
+            ) {
+              parentUpdateTasks.push(
+                Category.updateOne(
+                  {
+                    _id:
+                      copiedCategory._id,
+
+                    tenant:
+                      newTenantId,
+                  },
+                  {
+                    $set:
+                      updateFields,
+                  }
+                )
+              );
+            }
+          }
+        );
+
+        if (
+          parentUpdateTasks.length >
+          0
+        ) {
+          await Promise.all(
+            parentUpdateTasks
+          );
+        }
+
         logCopyStep(
           "Categories copied",
           {
             count:
               copiedCategories.length,
+
+            parentLinksRemapped:
+              parentUpdateTasks.length,
           }
         );
       }
@@ -1085,31 +1537,66 @@ const copyMasterTemplateToTenant =
           "Copying homepage category showcase"
         );
 
-        await HomepageCategoryShowcase.create({
+        const showcaseSnapshot =
+          removeDocumentFields(
+            masterShowcase
+          );
+
+        const remappedShowcase = {
+          ...showcaseSnapshot,
+
           tenant:
             newTenantId,
+        };
 
-          key:
-            masterShowcase.key,
+        /*
+         * Current TownMela supports dynamic `showcases[]`
+         * plus legacy showcaseOne/Two/Three compatibility.
+         * Preserve both while remapping category ObjectIds.
+         */
+        if (
+          Array.isArray(
+            masterShowcase.showcases
+          )
+        ) {
+          remappedShowcase.showcases =
+            masterShowcase.showcases.map(
+              (section) =>
+                remapShowcaseSection(
+                  section,
+                  categoryIdMap
+                )
+            );
+        }
 
-          showcaseOne:
-            remapShowcaseSection(
-              masterShowcase.showcaseOne,
-              categoryIdMap
-            ),
+        for (
+          const legacyKey of
+          [
+            "showcaseOne",
+            "showcaseTwo",
+            "showcaseThree",
+          ]
+        ) {
+          if (
+            masterShowcase[
+              legacyKey
+            ]
+          ) {
+            remappedShowcase[
+              legacyKey
+            ] =
+              remapShowcaseSection(
+                masterShowcase[
+                  legacyKey
+                ],
+                categoryIdMap
+              );
+          }
+        }
 
-          showcaseTwo:
-            remapShowcaseSection(
-              masterShowcase.showcaseTwo,
-              categoryIdMap
-            ),
-
-          showcaseThree:
-            remapShowcaseSection(
-              masterShowcase.showcaseThree,
-              categoryIdMap
-            ),
-        });
+        await HomepageCategoryShowcase.create(
+          remappedShowcase
+        );
 
         copySummary.homepageCategoryShowcases =
           1;
@@ -1118,6 +1605,50 @@ const copyMasterTemplateToTenant =
           "Homepage category showcase copied"
         );
       }
+
+      /* =====================================================
+         COPY HOMEPAGE PRODUCT SECTION SETTINGS
+
+         Product documents already carry their stable
+         homepageSection keys. Copying the matching section
+         settings preserves titles, enabled states and layout
+         order for the new tenant.
+      ===================================================== */
+
+      currentStage =
+        "copy_homepage_product_section_settings";
+
+      const HomepageProductSectionSetting =
+        resolveOptionalTenantModel(
+          OPTIONAL_TENANT_MODEL_CONFIGS
+            .homepageProductSections
+        );
+
+      copySummary.homepageProductSectionSettings =
+        await copySingleTenantSettingSnapshot(
+          {
+            Model:
+              HomepageProductSectionSetting,
+
+            masterTenantId,
+
+            newTenantId,
+
+            label:
+              "Homepage product section settings",
+
+            duplicateCode:
+              "DESTINATION_HOMEPAGE_PRODUCT_SECTION_SETTING_EXISTS",
+          }
+        );
+
+      logCopyStep(
+        "Homepage product section settings copy completed",
+        {
+          count:
+            copySummary.homepageProductSectionSettings,
+        }
+      );
 
       /* =====================================================
          COPY POPULAR CATEGORIES
@@ -1293,7 +1824,53 @@ const removeTenantTemplateData =
       SocialContactSetting.deleteMany({
         tenant: tenantId,
       }),
+
+      HeaderSetting.deleteMany({
+        tenant: tenantId,
+      }),
     ];
+
+    /*
+     * Optional copied settings use the same runtime resolver
+     * as provisioning so rollback remains compatible with
+     * filename/model-name differences.
+     */
+    for (
+      const config of
+      [
+        OPTIONAL_TENANT_MODEL_CONFIGS
+          .checkoutSettings,
+        OPTIONAL_TENANT_MODEL_CONFIGS
+          .homepageProductSections,
+      ]
+    ) {
+      try {
+        const Model =
+          resolveOptionalTenantModel(
+            config
+          );
+
+        if (Model) {
+          const tenantField =
+            getModelTenantField(
+              Model,
+              config.label
+            );
+
+          cleanupTasks.push(
+            Model.deleteMany({
+              [tenantField]:
+                tenantId,
+            })
+          );
+        }
+      } catch (error) {
+        console.error(
+          `Tenant ${config.label.toLowerCase()} rollback preparation error:`,
+          error
+        );
+      }
+    }
 
     /*
      * FooterSetting is resolved dynamically so rollback also

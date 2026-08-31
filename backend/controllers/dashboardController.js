@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const Order = require("../models/Order");
 const User = require("../models/User");
-const Product = require("../models/Product");
+const Product = require("../models/product");
 const Category = require("../models/Category");
 const Coupon = require("../models/Coupon");
 const BusinessMetricDaily = require("../models/BusinessMetricDaily");

@@ -1,3 +1,5 @@
+import { headers } from "next/headers";
+
 import Hero from "@/src/components/Hero";
 import PopularCategories from "@/src/components/Home/PopularCategories";
 import {
@@ -130,11 +132,13 @@ type HomepageLayoutResult = {
    SHARED PUBLIC REQUEST HEADERS
 ========================================================= */
 
-function getPublicHeaders(): HeadersInit {
+function getPublicHeaders(
+  useLocalTenantId = true,
+): HeadersInit {
   return {
     Accept: "application/json",
 
-    ...(TENANT_ID
+    ...(useLocalTenantId && TENANT_ID
       ? {
           "X-Tenant-Id":
             TENANT_ID,
@@ -147,14 +151,14 @@ function getPublicHeaders(): HeadersInit {
    FETCH PRODUCTS ON SERVER
 ========================================================= */
 
-async function getProducts(): Promise<ProductsResult> {
+async function getProducts(apiBaseUrl = API_BASE_URL, useLocalTenantId = true): Promise<ProductsResult> {
   try {
     const response =
       await fetch(
-        `${API_BASE_URL}/api/products?homepage=true`,
+        `${apiBaseUrl}/api/products?homepage=true`,
         {
           headers:
-            getPublicHeaders(),
+            getPublicHeaders(useLocalTenantId),
 
           /*
            * Homepage-only lightweight product response.
@@ -250,16 +254,16 @@ async function getProducts(): Promise<ProductsResult> {
    FETCH HOMEPAGE BANNERS ON SERVER
 ========================================================= */
 
-async function getHomepageBanners(): Promise<BannersResult> {
+async function getHomepageBanners(apiBaseUrl = API_BASE_URL, useLocalTenantId = true): Promise<BannersResult> {
   try {
     const response =
       await fetch(
-        `${API_BASE_URL}/api/homepage-banners?active=true`,
+        `${apiBaseUrl}/api/homepage-banners?active=true`,
         {
           method:
             "GET",
           headers:
-            getPublicHeaders(),
+            getPublicHeaders(useLocalTenantId),
           cache:
             "no-store",
         },
@@ -316,16 +320,16 @@ async function getHomepageBanners(): Promise<BannersResult> {
    FETCH POPULAR CATEGORIES ON SERVER
 ========================================================= */
 
-async function getPopularCategories(): Promise<PopularCategoriesResult> {
+async function getPopularCategories(apiBaseUrl = API_BASE_URL, useLocalTenantId = true): Promise<PopularCategoriesResult> {
   try {
     const response =
       await fetch(
-        `${API_BASE_URL}/api/popular-categories?active=true`,
+        `${apiBaseUrl}/api/popular-categories?active=true`,
         {
           method:
             "GET",
           headers:
-            getPublicHeaders(),
+            getPublicHeaders(useLocalTenantId),
           cache:
             "no-store",
         },
@@ -388,7 +392,7 @@ async function getPopularCategories(): Promise<PopularCategoriesResult> {
    FETCH HOMEPAGE LAYOUT + CATEGORY SHOWCASE ON SERVER
 ========================================================= */
 
-async function getHomepageLayout(): Promise<HomepageLayoutResult> {
+async function getHomepageLayout(apiBaseUrl = API_BASE_URL, useLocalTenantId = true): Promise<HomepageLayoutResult> {
   const defaultResult: HomepageLayoutResult = {
     sections: [],
     sectionsActive: true,
@@ -402,10 +406,10 @@ async function getHomepageLayout(): Promise<HomepageLayoutResult> {
       showcaseResponse,
     ] = await Promise.all([
       fetch(
-        `${API_BASE_URL}/api/homepage-product-section-settings`,
+        `${apiBaseUrl}/api/homepage-product-section-settings`,
         {
           method: "GET",
-          headers: getPublicHeaders(),
+          headers: getPublicHeaders(useLocalTenantId),
           next: {
             revalidate: 5,
           },
@@ -413,10 +417,10 @@ async function getHomepageLayout(): Promise<HomepageLayoutResult> {
       ),
 
       fetch(
-        `${API_BASE_URL}/api/homepage-category-showcases`,
+        `${apiBaseUrl}/api/homepage-category-showcases`,
         {
           method: "GET",
-          headers: getPublicHeaders(),
+          headers: getPublicHeaders(useLocalTenantId),
           next: {
             revalidate: 5,
           },
@@ -496,6 +500,46 @@ async function getHomepageLayout(): Promise<HomepageLayoutResult> {
 ========================================================= */
 
 export default async function Home() {
+  const incomingHeaders =
+    await headers();
+
+  const forwardedHost =
+    incomingHeaders
+      .get("x-forwarded-host")
+      ?.split(",")[0]
+      .trim();
+
+  const requestHost =
+    forwardedHost ||
+    incomingHeaders.get("host") ||
+    "";
+
+  const hostname =
+    requestHost
+      .split(":")[0]
+      .toLowerCase();
+
+  const isLocalRequest =
+    [
+      "localhost",
+      "127.0.0.1",
+      "::1",
+    ].includes(hostname);
+
+  const forwardedProto =
+    incomingHeaders
+      .get("x-forwarded-proto")
+      ?.split(",")[0]
+      .trim();
+
+  const requestApiBaseUrl =
+    !isLocalRequest && requestHost
+      ? `${forwardedProto || "https"}://${requestHost}`
+      : API_BASE_URL;
+
+  const useLocalTenantId =
+    isLocalRequest;
+
   const [
     productsResult,
     bannersResult,
@@ -503,10 +547,22 @@ export default async function Home() {
     homepageLayoutResult,
   ] =
     await Promise.all([
-      getProducts(),
-      getHomepageBanners(),
-      getPopularCategories(),
-      getHomepageLayout(),
+      getProducts(
+        requestApiBaseUrl,
+        useLocalTenantId,
+      ),
+      getHomepageBanners(
+        requestApiBaseUrl,
+        useLocalTenantId,
+      ),
+      getPopularCategories(
+        requestApiBaseUrl,
+        useLocalTenantId,
+      ),
+      getHomepageLayout(
+        requestApiBaseUrl,
+        useLocalTenantId,
+      ),
     ]);
 
   return (
