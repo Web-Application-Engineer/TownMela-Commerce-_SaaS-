@@ -943,7 +943,7 @@ export default function SocialContactWidget() {
         pointer-events-none
         fixed
         right-2
-        bottom-[82px]
+        bottom-[65px]
         z-[90]
         h-[340px]
         w-[210px]

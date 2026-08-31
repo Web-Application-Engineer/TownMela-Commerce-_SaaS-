@@ -192,7 +192,7 @@ export default function StockClearancePopup() {
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4">
-      <div className="relative w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div className="relative w-full max-w-xl overflow-hidden rounded-[10px] bg-white shadow-2xl">
         <button
           type="button"
           onClick={() =>

@@ -186,12 +186,12 @@ export default function StockClearancePageCountdown({
     );
 
   return (
-    <div className="flex flex-col items-center">
-      <div className="inline-flex rounded-full border border-orange-200 bg-orange-50 px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.22em] text-[#FF6900] sm:text-xs">
+    <div className="flex w-full min-w-0 flex-col items-center">
+      <div className="inline-flex max-w-full items-center justify-center rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.16em] text-[#FF6900] min-[390px]:px-4 min-[390px]:text-[10px] min-[390px]:tracking-[0.2em] sm:text-xs sm:tracking-[0.22em]">
         {label}
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+      <div className="mt-3 grid w-full max-w-[430px] grid-cols-4 gap-1.5 min-[390px]:gap-2 sm:mt-4 sm:gap-3">
         {items.map(
           (
             item,
@@ -201,16 +201,16 @@ export default function StockClearancePageCountdown({
               key={
                 item.label
               }
-              className="flex items-center gap-2 sm:gap-3"
+              className="relative min-w-0"
             >
-              <div className="min-w-[64px] rounded-2xl border border-orange-100 bg-[#FFF8F2] px-3 py-3 text-center shadow-sm sm:min-w-[76px] sm:px-4 sm:py-3.5">
-                <div className="text-[26px] font-black leading-none tabular-nums text-[#0B1F3A] sm:text-[34px]">
+              <div className="w-full min-w-0 rounded-xl border border-orange-100 bg-[#FFF8F2] px-1 py-2.5 text-center shadow-sm min-[390px]:rounded-2xl min-[390px]:px-2 min-[390px]:py-3 sm:px-3 sm:py-3.5">
+                <div className="text-[20px] font-black leading-none tabular-nums text-[#0B1F3A] min-[390px]:text-[24px] sm:text-[34px]">
                   {
                     item.value
                   }
                 </div>
 
-                <div className="mt-1.5 text-[9px] font-black uppercase tracking-[0.16em] text-slate-500 sm:text-[10px]">
+                <div className="mt-1.5 truncate text-[7px] font-black uppercase tracking-[0.08em] text-slate-500 min-[390px]:text-[8px] min-[390px]:tracking-[0.12em] sm:text-[10px] sm:tracking-[0.16em]">
                   {
                     item.label
                   }
@@ -220,7 +220,10 @@ export default function StockClearancePageCountdown({
               {index <
                 items.length -
                   1 && (
-                <span className="text-[24px] font-black leading-none text-[#FF6900] sm:text-[30px]">
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -right-[6px] top-1/2 z-10 -translate-y-1/2 text-[16px] font-black leading-none text-[#FF6900] min-[390px]:-right-[7px] min-[390px]:text-[18px] sm:-right-[9px] sm:text-[28px]"
+                >
                   :
                 </span>
               )}

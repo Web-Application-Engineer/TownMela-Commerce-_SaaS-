@@ -299,7 +299,7 @@ export default function StockClearancePage() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-[#F7F8FA] px-3 py-8">
+      <main className="min-h-screen bg-[#F7F8FA] px-2 pt-4 pb-24 sm:px-4 sm:pt-6 md:pb-10 lg:px-5 lg:pt-8">
         <div className="mx-auto max-w-[1450px]">
           <div className="h-48 animate-pulse rounded-2xl bg-gray-200" />
           <div className="mt-5 h-96 animate-pulse rounded-2xl bg-gray-200" />
@@ -310,7 +310,7 @@ export default function StockClearancePage() {
 
   if (errorMessage) {
     return (
-      <main className="min-h-screen bg-[#F7F8FA] px-3 py-8">
+      <main className="min-h-screen bg-[#F7F8FA] px-2 pt-4 pb-24 sm:px-4 sm:pt-6 md:pb-10 lg:px-5 lg:pt-8">
         <div className="mx-auto max-w-[1450px]">
           <div className="rounded-2xl border border-red-200 bg-white p-8 text-center">
             <p className="font-bold text-red-600">
@@ -334,11 +334,11 @@ export default function StockClearancePage() {
 
   return (
     <main className="min-h-screen bg-[#F7F8FA]">
-      <section className="px-3 py-6 sm:px-4 lg:px-5 lg:py-8">
+      <section className="px-2 pt-4 pb-24 sm:px-4 sm:pt-6 md:pb-10 lg:px-5 lg:pt-8">
         <div className="mx-auto w-full max-w-[1450px]">
           <div className="overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm">
             {campaign?.campaignBanner ? (
-              <div className="relative aspect-[16/5] w-full bg-gray-100">
+              <div className="relative aspect-[16/7] w-full bg-gray-100 sm:aspect-[16/6] lg:aspect-[16/5]">
                 <Image
                   src={
                     campaign.campaignBanner
@@ -349,19 +349,19 @@ export default function StockClearancePage() {
                   }
                   fill
                   priority
-                  sizes="100vw"
-                  className="object-cover"
+                  sizes="(max-width: 640px) 100vw, (max-width: 1450px) 96vw, 1450px"
+                  className="object-cover object-center"
                 />
               </div>
             ) : null}
 
-            <div className="px-4 py-7 text-center sm:px-6 sm:py-8">
-              <div className="mx-auto w-full max-w-[620px] rounded-[28px] border border-orange-100 bg-white px-4 py-5 shadow-[0_10px_35px_rgba(15,23,42,0.06)] sm:px-7 sm:py-6">
-                <div className="inline-flex rounded-full border border-orange-200 bg-orange-50 px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.24em] text-[#FF6900] sm:text-xs">
+            <div className="px-2.5 py-4 text-center min-[390px]:px-3 sm:px-6 sm:py-7 lg:py-8">
+              <div className="mx-auto w-full max-w-[620px] overflow-hidden rounded-2xl border border-orange-100 bg-white px-3 py-4 shadow-[0_10px_35px_rgba(15,23,42,0.06)] min-[390px]:px-4 min-[390px]:py-5 sm:rounded-[28px] sm:px-7 sm:py-6">
+                <div className="inline-flex max-w-full items-center justify-center rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.16em] text-[#FF6900] min-[390px]:px-4 min-[390px]:text-[10px] min-[390px]:tracking-[0.2em] sm:text-xs sm:tracking-[0.24em]">
                   LIMITED TIME OFFER
                 </div>
 
-                <h1 className="mt-3 text-2xl font-black uppercase tracking-[0.04em] text-[#0B1F3A] sm:text-3xl">
+                <h1 className="mt-3 break-words text-lg font-black uppercase leading-tight tracking-[0.02em] text-[#0B1F3A] min-[390px]:text-xl sm:text-2xl sm:tracking-[0.04em] lg:text-3xl">
                   {campaign?.name ||
                     "STOCK CLEARANCE DISCOUNT"}
                 </h1>
@@ -370,7 +370,7 @@ export default function StockClearancePage() {
                 campaign.countdownTarget &&
                 (isScheduled ||
                   isLive) ? (
-                  <div className="mt-5">
+                  <div className="mt-4 w-full min-w-0 sm:mt-5">
                     <StockClearancePageCountdown
                       target={
                         campaign.countdownTarget
@@ -389,13 +389,13 @@ export default function StockClearancePage() {
 
                 {!isScheduled &&
                 !isLive ? (
-                  <p className="mt-4 text-sm font-semibold text-gray-500">
+                  <p className="mx-auto mt-4 max-w-[520px] text-xs font-semibold leading-5 text-gray-500 sm:text-sm sm:leading-6">
                     No Stock Clearance campaign is active right now.
                   </p>
                 ) : null}
 
                 {isScheduled ? (
-                  <p className="mt-4 text-sm font-semibold text-gray-500">
+                  <p className="mx-auto mt-4 max-w-[520px] text-xs font-semibold leading-5 text-gray-500 sm:text-sm sm:leading-6">
                     Campaign products will appear automatically when the offer starts.
                   </p>
                 ) : null}
@@ -404,7 +404,7 @@ export default function StockClearancePage() {
           </div>
 
           {isLive ? (
-            <div className="mt-5 rounded-2xl bg-gray-200 p-3 sm:p-4">
+            <div className="mt-4 rounded-xl bg-gray-200 p-2 min-[390px]:p-2.5 sm:mt-5 sm:rounded-2xl sm:p-4">
               <ProductGrid
                 products={
                   products
