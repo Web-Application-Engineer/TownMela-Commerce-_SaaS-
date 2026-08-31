@@ -48,9 +48,6 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ??
   "http://localhost:5000";
 
-const TENANT_ID =
-  process.env.NEXT_PUBLIC_TENANT_ID ?? "";
-
 /* =========================================================
    LOCAL SHOP TYPES
 ========================================================= */
@@ -68,6 +65,215 @@ type CategoriesApiResponse =
       categories?: Category[];
       message?: string;
     };
+
+type ShopData = {
+  products: Product[];
+  categories: Category[];
+};
+
+type ShopDataCacheEntry =
+  ShopData & {
+    timestamp: number;
+  };
+
+/*
+ * Short in-memory cache:
+ * Shop -> Category -> Subcategory navigation can reuse the same
+ * tenant data instead of showing a full loading skeleton each time.
+ */
+const SHOP_DATA_CACHE_TTL_MS =
+  30_000;
+
+const shopDataCache =
+  new Map<
+    string,
+    ShopDataCacheEntry
+  >();
+
+const shopDataRequests =
+  new Map<
+    string,
+    Promise<ShopData>
+  >();
+
+function extractProducts(
+  payload:
+    | ProductsApiResponse
+    | null,
+): Product[] {
+  if (!payload) {
+    return [];
+  }
+
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  return Array.isArray(
+    payload.products,
+  )
+    ? payload.products
+    : [];
+}
+
+function extractCategories(
+  payload:
+    | CategoriesApiResponse
+    | null,
+): Category[] {
+  if (!payload) {
+    return [];
+  }
+
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  return Array.isArray(
+    payload.categories,
+  )
+    ? payload.categories
+    : [];
+}
+
+async function fetchShopData(
+  tenantId: string,
+): Promise<ShopData> {
+  const existingRequest =
+    shopDataRequests.get(
+      tenantId,
+    );
+
+  if (existingRequest) {
+    return existingRequest;
+  }
+
+  const request =
+    (async () => {
+      const headers:
+        HeadersInit = {
+        Accept:
+          "application/json",
+
+        "Content-Type":
+          "application/json",
+
+        "X-Tenant-Id":
+          tenantId,
+      };
+
+      /*
+       * Products and categories start together.
+       *
+       * The products endpoint uses a lightweight storefront payload.
+       * We intentionally do NOT use cache: "no-store" here so the
+       * browser can honor the short tenant-aware backend cache.
+       */
+      const [
+        productsResponse,
+        categoriesResponse,
+      ] = await Promise.all([
+        fetch(
+          `${API_BASE_URL}/api/products?storefront=shop`,
+          {
+            method: "GET",
+            headers,
+            credentials:
+              "include",
+          },
+        ),
+
+        fetch(
+          `${API_BASE_URL}/api/categories`,
+          {
+            method: "GET",
+            headers,
+            credentials:
+              "include",
+          },
+        ),
+      ]);
+
+      const [
+        productsPayload,
+        categoriesPayload,
+      ] = await Promise.all([
+        productsResponse
+          .json()
+          .catch(
+            () => null,
+          ) as Promise<
+            ProductsApiResponse |
+            null
+          >,
+
+        categoriesResponse
+          .json()
+          .catch(
+            () => null,
+          ) as Promise<
+            CategoriesApiResponse |
+            null
+          >,
+      ]);
+
+      if (
+        !productsResponse.ok
+      ) {
+        const apiMessage =
+          productsPayload &&
+          !Array.isArray(
+            productsPayload,
+          )
+            ? productsPayload.message
+            : undefined;
+
+        throw new Error(
+          apiMessage ||
+            `Products could not be loaded. Status: ${productsResponse.status}`,
+        );
+      }
+
+      const products =
+        extractProducts(
+          productsPayload,
+        );
+
+      let categories:
+        Category[] = [];
+
+      if (
+        categoriesResponse.ok
+      ) {
+        categories =
+          extractCategories(
+            categoriesPayload,
+          );
+      } else {
+        console.warn(
+          "Categories could not be loaded separately. Product category data will be used.",
+        );
+      }
+
+      return {
+        products,
+        categories,
+      };
+    })();
+
+  shopDataRequests.set(
+    tenantId,
+    request,
+  );
+
+  try {
+    return await request;
+  } finally {
+    shopDataRequests.delete(
+      tenantId,
+    );
+  }
+}
 
 type StockFilter =
   | "all"
@@ -847,6 +1053,9 @@ export default function ShopPageClient({
 }: ShopPageClientProps) {
   const {
     tenant,
+    tenantId,
+    isLoading:
+      isTenantLoading,
   } = useStorefrontTenant();
 
   /*
@@ -932,130 +1141,157 @@ export default function ShopPageClient({
   ======================================================= */
 
   useEffect(() => {
-    let isComponentActive = true;
+    /*
+     * Wait only for storefront tenant resolution.
+     * This makes the request tenant-correct on localhost
+     * and on every custom storefront domain.
+     */
+    if (isTenantLoading) {
+      return;
+    }
 
-    const loadShopData = async () => {
-      try {
-        setIsLoading(true);
-        setErrorMessage("");
+    if (!tenantId) {
+      setProducts([]);
+      setCategories([]);
+      setErrorMessage(
+        "Store tenant could not be resolved.",
+      );
+      setIsLoading(false);
+      return;
+    }
 
-        const productsResponse =
-          await fetch(
-            `${API_BASE_URL}/api/products`,
+    let isComponentActive =
+      true;
+
+    const cachedEntry =
+      shopDataCache.get(
+        tenantId,
+      );
+
+    const hasCachedData =
+      Boolean(cachedEntry);
+
+    if (cachedEntry) {
+      /*
+       * Render cached Shop data immediately.
+       * This is what makes Shop -> Category -> Subcategory
+       * navigation feel instant.
+       */
+      setProducts(
+        cachedEntry.products,
+      );
+
+      setCategories(
+        cachedEntry.categories,
+      );
+
+      setErrorMessage("");
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+      setErrorMessage("");
+    }
+
+    const cacheIsFresh =
+      cachedEntry
+        ? Date.now() -
+            cachedEntry.timestamp <
+          SHOP_DATA_CACHE_TTL_MS
+        : false;
+
+    if (cacheIsFresh) {
+      return () => {
+        isComponentActive =
+          false;
+      };
+    }
+
+    const loadShopData =
+      async () => {
+        try {
+          /*
+           * If stale cache exists, refresh quietly in the
+           * background instead of bringing back the skeleton.
+           */
+          if (!hasCachedData) {
+            setIsLoading(true);
+          }
+
+          const shopData =
+            await fetchShopData(
+              tenantId,
+            );
+
+          shopDataCache.set(
+            tenantId,
             {
-              method: "GET",
-              cache: "no-store",
-
-headers: {
-  Accept: "application/json",
-  "Content-Type": "application/json",
-  "X-Tenant-Id": TENANT_ID,
-},
+              ...shopData,
+              timestamp:
+                Date.now(),
             },
           );
 
-        const productsData:
-          ProductsApiResponse =
-          await productsResponse.json();
-
-        if (!productsResponse.ok) {
-          const apiMessage =
-            Array.isArray(
-              productsData,
-            )
-              ? undefined
-              : productsData.message;
-
-          throw new Error(
-            apiMessage ||
-              `Products could not be loaded. Status: ${productsResponse.status}`,
-          );
-        }
-
-        const productList =
-          Array.isArray(productsData)
-            ? productsData
-            : Array.isArray(
-                  productsData.products,
-                )
-              ? productsData.products
-              : [];
-
-        let categoryList:
-          Category[] = [];
-
-        try {
-          const categoriesResponse =
-            await fetch(
-              `${API_BASE_URL}/api/categories`,
-              {
-                method: "GET",
-                cache: "no-store",
-
-headers: {
-  Accept: "application/json",
-  "Content-Type": "application/json",
-  "X-Tenant-Id": TENANT_ID,
-},
-              },
-            );
-
-          const categoriesData:
-            CategoriesApiResponse =
-            await categoriesResponse.json();
-
-          if (categoriesResponse.ok) {
-            categoryList =
-              Array.isArray(
-                categoriesData,
-              )
-                ? categoriesData
-                : Array.isArray(
-                      categoriesData.categories,
-                    )
-                  ? categoriesData.categories
-                  : [];
+          if (
+            !isComponentActive
+          ) {
+            return;
           }
-        } catch (categoryError) {
-          console.warn(
-            "Categories could not be loaded separately. Product category data will be used.",
-            categoryError,
+
+          setProducts(
+            shopData.products,
           );
-        }
 
-        if (isComponentActive) {
-          setProducts(productList);
-          setCategories(categoryList);
-        }
-      } catch (error) {
-        console.error(
-          "Shop data loading error:",
-          error,
-        );
-
-        if (isComponentActive) {
-          setProducts([]);
-          setCategories([]);
-
-          setErrorMessage(
-            error instanceof Error
-              ? error.message
-              : "Products could not be loaded.",
+          setCategories(
+            shopData.categories,
           );
+
+          setErrorMessage("");
+        } catch (error) {
+          console.error(
+            "Shop data loading error:",
+            error,
+          );
+
+          if (
+            !isComponentActive
+          ) {
+            return;
+          }
+
+          /*
+           * Preserve already-rendered cached data if a
+           * background refresh fails.
+           */
+          if (!hasCachedData) {
+            setProducts([]);
+            setCategories([]);
+
+            setErrorMessage(
+              error instanceof Error
+                ? error.message
+                : "Products could not be loaded.",
+            );
+          }
+        } finally {
+          if (
+            isComponentActive &&
+            !hasCachedData
+          ) {
+            setIsLoading(false);
+          }
         }
-      } finally {
-        if (isComponentActive) {
-          setIsLoading(false);
-        }
-      }
-    };
+      };
 
     void loadShopData();
 
     return () => {
-      isComponentActive = false;
+      isComponentActive =
+        false;
     };
-  }, []);
+  }, [
+    isTenantLoading,
+    tenantId,
+  ]);
 
   /* =======================================================
      PRICE BOUNDS
@@ -1695,7 +1931,7 @@ headers: {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen w-full bg-[#F7F8FA]">
+      <main className="min-h-screen w-full bg-[#F7F8FA] pb-24 md:pb-10">
         <section className="w-full px-3 py-6 sm:px-4 lg:px-5 lg:py-8">
           <div className="mx-auto w-full max-w-[1450px]">
             <div className="mb-5 flex items-center gap-2">
@@ -1750,7 +1986,7 @@ headers: {
 
   if (errorMessage) {
     return (
-      <main className="min-h-screen w-full bg-[#F7F8FA]">
+      <main className="min-h-screen w-full bg-[#F7F8FA] pb-24 md:pb-10">
         <section className="w-full px-3 py-6 sm:px-4 lg:px-5 lg:py-8">
           <div className="mx-auto w-full max-w-[1450px]">
             <div className="rounded-2xl border border-red-200 bg-white p-8 text-center shadow-sm">
@@ -1775,7 +2011,7 @@ headers: {
   ======================================================= */
 
   return (
-    <main className="min-h-screen w-full bg-[#F7F8FA]">
+    <main className="min-h-screen w-full bg-[#F7F8FA] pb-24 md:pb-10">
       <section className="w-full px-3 py-6 sm:px-4 lg:px-5 lg:py-8">
         <div className="mx-auto w-full max-w-[1450px]">
           {/* Page Header */}

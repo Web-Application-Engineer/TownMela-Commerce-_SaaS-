@@ -2,6 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   Home,
   PackageSearch,
@@ -41,6 +47,181 @@ const NAV_ITEMS = [
 export default function MobileBottomNav() {
   const pathname = usePathname();
 
+  const [
+    isVisible,
+    setIsVisible,
+  ] = useState(true);
+
+  const lastScrollYRef =
+    useRef(0);
+
+  const scrollStopTimerRef =
+    useRef<
+      ReturnType<typeof setTimeout> |
+      null
+    >(null);
+
+  /* =======================================================
+     HIDE WHILE SCROLLING / SHOW WHEN SCROLL STOPS
+  ======================================================= */
+
+  useEffect(() => {
+    if (
+      typeof window ===
+      "undefined"
+    ) {
+      return;
+    }
+
+    lastScrollYRef.current =
+      window.scrollY;
+
+    const clearScrollStopTimer =
+      () => {
+        if (
+          scrollStopTimerRef.current
+        ) {
+          clearTimeout(
+            scrollStopTimerRef.current,
+          );
+
+          scrollStopTimerRef.current =
+            null;
+        }
+      };
+
+    const showNavigation =
+      () => {
+        setIsVisible(true);
+      };
+
+    const handleScroll =
+      () => {
+        /*
+         * This behavior is mobile-only.
+         * Keep the state visible when the viewport reaches tablet size.
+         */
+        if (
+          window.matchMedia(
+            "(min-width: 768px)",
+          ).matches
+        ) {
+          clearScrollStopTimer();
+          showNavigation();
+          return;
+        }
+
+        const currentScrollY =
+          Math.max(
+            0,
+            window.scrollY,
+          );
+
+        const scrollDistance =
+          Math.abs(
+            currentScrollY -
+              lastScrollYRef.current,
+          );
+
+        /*
+         * Keep the navigation visible at the very top.
+         * Ignore tiny 1px Safari/browser-toolbar movements.
+         */
+        if (
+          currentScrollY <= 8
+        ) {
+          showNavigation();
+        } else if (
+          scrollDistance >= 2
+        ) {
+          setIsVisible(false);
+        }
+
+        lastScrollYRef.current =
+          currentScrollY;
+
+        clearScrollStopTimer();
+
+        /*
+         * Browsers do not emit a dedicated "scroll stopped" event.
+         * 100ms without another scroll event is treated as stopped.
+         * This feels immediate while avoiding flicker during momentum scroll.
+         */
+        scrollStopTimerRef.current =
+          setTimeout(
+            () => {
+              showNavigation();
+
+              scrollStopTimerRef.current =
+                null;
+            },
+            120,
+          );
+      };
+
+    const handleResize =
+      () => {
+        if (
+          window.matchMedia(
+            "(min-width: 768px)",
+          ).matches
+        ) {
+          clearScrollStopTimer();
+          showNavigation();
+        }
+      };
+
+    window.addEventListener(
+      "scroll",
+      handleScroll,
+      {
+        passive: true,
+      },
+    );
+
+    window.addEventListener(
+      "resize",
+      handleResize,
+      {
+        passive: true,
+      },
+    );
+
+    return () => {
+      clearScrollStopTimer();
+
+      window.removeEventListener(
+        "scroll",
+        handleScroll,
+      );
+
+      window.removeEventListener(
+        "resize",
+        handleResize,
+      );
+    };
+  }, []);
+
+  /*
+   * A route change should always restore the navigation immediately.
+   */
+  useEffect(() => {
+    if (
+      scrollStopTimerRef.current
+    ) {
+      clearTimeout(
+        scrollStopTimerRef.current,
+      );
+
+      scrollStopTimerRef.current =
+        null;
+    }
+
+    setIsVisible(true);
+  }, [
+    pathname,
+  ]);
+
   const isActive = (href: string) => {
     if (href === "/") {
       return pathname === "/";
@@ -55,7 +236,7 @@ export default function MobileBottomNav() {
   return (
     <nav
       aria-label="Mobile bottom navigation"
-      className="
+      className={`
         fixed
         inset-x-0
         bottom-0
@@ -65,8 +246,18 @@ export default function MobileBottomNav() {
         bg-white/95
         shadow-[0_-6px_18px_rgba(15,23,42,0.08)]
         backdrop-blur
+        will-change-[transform,opacity]
+        transition-[transform,opacity]
+        duration-300
+        ease-[cubic-bezier(0.22,1,0.36,1)]
         md:hidden
-      "
+
+        ${
+          isVisible
+            ? "translate-y-0 opacity-100"
+            : "pointer-events-none translate-y-[115%] opacity-0"
+        }
+      `}
       style={{
         paddingBottom:
           "env(safe-area-inset-bottom)",

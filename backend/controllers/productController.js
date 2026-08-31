@@ -333,6 +333,17 @@ const getProducts = async (req, res) => {
         .trim()
         .toLowerCase() === "true";
 
+    /*
+     * Lightweight Shop / Category / Subcategory mode:
+     * GET /api/products?storefront=shop
+     *
+     * Normal /api/products behavior remains unchanged.
+     */
+    const storefrontShop =
+      String(req.query.storefront || "")
+        .trim()
+        .toLowerCase() === "shop";
+
     const query = {
       tenant: tenantId,
       ...PUBLIC_FILTER,
@@ -366,6 +377,28 @@ const getProducts = async (req, res) => {
           "createdAt",
         ].join(" ")
       );
+    } else if (storefrontShop) {
+      /*
+       * Keep exactly the product-card/filter fields required
+       * by ShopPageClient. sizes/colors are retained so the
+       * existing "choose options" Cart behavior is preserved.
+       */
+      productQuery = productQuery.select(
+        [
+          "_id",
+          "name",
+          "slug",
+          "price",
+          "oldPrice",
+          "rating",
+          "image",
+          "stock",
+          "category",
+          "sizes",
+          "colors",
+          "createdAt",
+        ].join(" ")
+      );
     }
 
     const products = await productQuery.lean();
@@ -376,10 +409,21 @@ const getProducts = async (req, res) => {
      * endpoints remain unchanged.
      */
     if (homepageOnly) {
-      res.set("Vary", "X-Tenant-Id");
+      res.vary("X-Tenant-Id");
       res.set(
         "Cache-Control",
         "private, max-age=5, stale-while-revalidate=15"
+      );
+    } else if (storefrontShop) {
+      /*
+       * Short tenant-aware browser cache.
+       * Fast enough for repeated storefront navigation while
+       * still allowing recent catalog changes to appear quickly.
+       */
+      res.vary("X-Tenant-Id");
+      res.set(
+        "Cache-Control",
+        "private, max-age=15, stale-while-revalidate=45"
       );
     }
 

@@ -10,6 +10,7 @@ import {
 
 import {
   ChevronRight,
+  Globe2,
   MapPin,
   PackageSearch,
   X,
@@ -217,6 +218,62 @@ export default function MobileDrawer({
     footerSettings.showGoogleMap !==
       false &&
     Boolean(googleMapUrl);
+
+  /* =======================================================
+     DIGITAL PRESENCE
+  ======================================================= */
+
+  const digitalPresenceSetting =
+    footerSettings.quickNavigationLinks.find(
+      (item) => {
+        const label =
+          String(
+            item.label || "",
+          )
+            .trim()
+            .toLowerCase();
+
+        const url =
+          String(
+            item.url || "",
+          )
+            .trim()
+            .toLowerCase()
+            .replace(/\/+$/, "");
+
+        return (
+          label ===
+            "explore digital presence" ||
+          label ===
+            "explore your digital presence" ||
+          url ===
+            "https://www.sreste.com" ||
+          url ===
+            "https://sreste.com" ||
+          url ===
+            "http://www.sreste.com" ||
+          url ===
+            "http://sreste.com"
+        );
+      },
+    );
+
+  /*
+   * The Digital Presence destination is intentionally fixed.
+   * Tenant settings may control whether the link is enabled.
+   */
+  const digitalPresenceUrl =
+    "https://www.sreste.com";
+
+  const showDigitalPresence =
+    !isFooterSettingsLoading &&
+    footerSettings.isActive !==
+      false &&
+    Boolean(
+      digitalPresenceSetting,
+    ) &&
+    digitalPresenceSetting?.enabled ===
+      true;
 
   /* =======================================================
      CLIENT MOUNT
@@ -953,6 +1010,54 @@ export default function MobileDrawer({
               />
             </Link>
           </div>
+
+          {/* ===============================================
+              DIGITAL PRESENCE
+          =============================================== */}
+
+          {showDigitalPresence && (
+            <div className="px-6 pb-2 pt-1">
+              <a
+                href={digitalPresenceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={onClose}
+                aria-label="Explore Digital Presence"
+                className="
+                  flex
+                  w-full
+                  items-center
+                  justify-between
+                  rounded-xl
+                  bg-[#0B1F3A]
+                  px-4
+                  py-3
+                  text-sm
+                  font-semibold
+                  text-white
+                  shadow-sm
+                  transition-colors
+                  hover:bg-[#152E4D]
+                "
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <Globe2
+                    size={17}
+                    className="shrink-0"
+                  />
+
+                  <span className="truncate">
+                    Explore Digital Presence
+                  </span>
+                </span>
+
+                <ChevronRight
+                  size={18}
+                  className="shrink-0"
+                />
+              </a>
+            </div>
+          )}
 
           {/* ===============================================
               TENANT STORE LOCATION

@@ -1,6 +1,9 @@
 import Hero from "@/src/components/Hero";
 import PopularCategories from "@/src/components/Home/PopularCategories";
-import HomepageProductSections from "@/src/components/Home/HomepageProductSections";
+import {
+  HomepageProductSections,
+  type HomepageProductSection,
+} from "@/src/components/Home/HomepageProductSections";
 import type { ShowcaseConfig } from "@/src/components/Home/CategoryShowcase";
 import type { Product } from "@/src/types/product";
 
@@ -99,15 +102,6 @@ type BannersResult = {
 type PopularCategoriesResult = {
   items: PopularCategoryApiItem[];
   error: string | null;
-};
-
-type HomepageProductSection = {
-  id?: string;
-  key: string;
-  title: string;
-  active: boolean;
-  order: number;
-  layoutOrder?: number;
 };
 
 type HomepageProductSectionResponse = {
