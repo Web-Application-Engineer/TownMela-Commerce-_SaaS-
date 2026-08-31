@@ -1,4 +1,4 @@
-
+"use client";
 
 import Link from "next/link";
 
@@ -17,6 +17,14 @@ import ProductCard from "./ProductCard";
 import type {
   Product,
 } from "../../types/product";
+
+/*
+ * Backward-compatible exported type.
+ * OrderSuccessClient and any older consumers can continue
+ * importing `type RelatedProduct` from this component.
+ */
+export type RelatedProduct =
+  Product;
 
 /* =========================================================
    COMPONENT PROPS
