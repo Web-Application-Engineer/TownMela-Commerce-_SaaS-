@@ -16,6 +16,14 @@ import {
   Tags,
 } from "lucide-react";
 
+import {
+  useStorefrontTenant,
+} from "@/src/context/StorefrontTenantContext";
+
+import {
+  prefetchOffersSourceData,
+} from "@/src/utils/offersPrefetch";
+
 const NAV_ITEMS = [
   {
     label: "Home",
@@ -46,6 +54,13 @@ const NAV_ITEMS = [
 
 export default function MobileBottomNav() {
   const pathname = usePathname();
+
+  const {
+    tenantId,
+    isLoading:
+      isTenantLoading,
+  } =
+    useStorefrontTenant();
 
   const [
     isVisible,
@@ -202,6 +217,70 @@ export default function MobileBottomNav() {
     };
   }, []);
 
+  /* =======================================================
+     PREFETCH OFFERS DATA
+  ======================================================= */
+
+  useEffect(() => {
+    if (
+      isTenantLoading ||
+      !tenantId ||
+      pathname === "/offers"
+    ) {
+      return;
+    }
+
+    /*
+     * Start shortly after the storefront becomes interactive.
+     * By the time the customer taps Offers, the product and
+     * campaign payloads are usually already in memory/session cache.
+     */
+    const timer =
+      window.setTimeout(
+        () => {
+          void prefetchOffersSourceData(
+            tenantId,
+          ).catch(
+            () => {
+              /*
+               * Prefetch failure must never affect the current page.
+               * OffersPage will retry normally when opened.
+               */
+            },
+          );
+        },
+        180,
+      );
+
+    return () => {
+      window.clearTimeout(
+        timer,
+      );
+    };
+  }, [
+    isTenantLoading,
+    pathname,
+    tenantId,
+  ]);
+
+  const warmOffersCache =
+    () => {
+      if (
+        isTenantLoading ||
+        !tenantId
+      ) {
+        return;
+      }
+
+      void prefetchOffersSourceData(
+        tenantId,
+      ).catch(
+        () => {
+          // OffersPage will retry if needed.
+        },
+      );
+    };
+
   /*
    * A route change should always restore the navigation immediately.
    */
@@ -274,6 +353,24 @@ export default function MobileBottomNav() {
               href={item.href}
               aria-current={
                 active ? "page" : undefined
+              }
+              onPointerEnter={
+                item.href ===
+                "/offers"
+                  ? warmOffersCache
+                  : undefined
+              }
+              onPointerDown={
+                item.href ===
+                "/offers"
+                  ? warmOffersCache
+                  : undefined
+              }
+              onFocus={
+                item.href ===
+                "/offers"
+                  ? warmOffersCache
+                  : undefined
               }
               className={`
                 flex

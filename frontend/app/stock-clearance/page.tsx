@@ -12,9 +12,17 @@ import ProductGrid from "@/src/components/Products/ProductGrid";
 
 import StockClearancePageCountdown from "@/src/components/StockClearance/StockClearancePageCountdown";
 
+import {
+  useStorefrontTenant,
+} from "@/src/context/StorefrontTenantContext";
+
+import {
+  getCachedOffersSourceData,
+  prefetchOffersSourceData,
+} from "@/src/utils/offersPrefetch";
+
 import type {
   Product,
-  ProductsApiResponse,
 } from "../../src/types/product";
 
 import {
@@ -26,26 +34,17 @@ import {
 } from "../../src/utils/stockClearance";
 
 /* =========================================================
-   API
-========================================================= */
-
-const API_BASE_URL =
-  (
-    process.env.NEXT_PUBLIC_API_URL ??
-    "http://localhost:5000"
-  ).replace(/\/$/, "");
-
-const TENANT_ID =
-  (
-    process.env.NEXT_PUBLIC_TENANT_ID ??
-    ""
-  ).trim();
-
-/* =========================================================
    PAGE
 ========================================================= */
 
 export default function StockClearancePage() {
+  const {
+    tenantId,
+    isLoading:
+      isTenantLoading,
+  } =
+    useStorefrontTenant();
+
   const [
     campaign,
     setCampaign,
@@ -73,233 +72,202 @@ export default function StockClearancePage() {
   ] =
     useState("");
 
-  const loadCampaign =
+  /* =======================================================
+     BUILD CAMPAIGN PRODUCTS
+  ======================================================= */
+
+  const buildCampaignProducts =
     useCallback(
-      async (
-        signal?: AbortSignal,
+      (
+        productList:
+          Product[],
+        activeCampaign:
+          StockClearanceCampaign |
+          null,
       ) => {
-        const headers:
-          HeadersInit = {
-          Accept:
-            "application/json",
-        };
-
-        if (TENANT_ID) {
-          headers[
-            "X-Tenant-Id"
-          ] =
-            TENANT_ID;
-        }
-
-        const [
-          campaignResponse,
-          productsResponse,
-        ] =
-          await Promise.all([
-            fetch(
-              `${API_BASE_URL}/api/stock-clearance`,
-              {
-                method:
-                  "GET",
-
-                cache:
-                  "no-store",
-
-                credentials:
-                  "include",
-
-                signal,
-
-                headers,
-              },
-            ),
-
-            fetch(
-              `${API_BASE_URL}/api/products`,
-              {
-                method:
-                  "GET",
-
-                cache:
-                  "no-store",
-
-                credentials:
-                  "include",
-
-                signal,
-
-                headers,
-              },
-            ),
-          ]);
-
-        const campaignData =
-          (await campaignResponse
-            .json()
-            .catch(
-              () => null,
-            )) as
-            | StockClearanceApiResponse
-            | null;
-
-        const productsData =
-          (await productsResponse
-            .json()
-            .catch(
-              () => null,
-            )) as
-            | ProductsApiResponse
-            | Product[]
-            | null;
-
         if (
-          !campaignResponse.ok ||
-          !campaignData?.success
+          activeCampaign?.status !==
+          "live"
         ) {
-          throw new Error(
-            campaignData?.message ||
-              "Stock clearance campaign could not be loaded.",
-          );
+          return [];
         }
-
-        if (
-          !productsResponse.ok
-        ) {
-          const apiMessage =
-            productsData &&
-            !Array.isArray(
-              productsData,
-            )
-              ? productsData.message
-              : undefined;
-
-          throw new Error(
-            apiMessage ||
-              "Products could not be loaded.",
-          );
-        }
-
-        const productList =
-          Array.isArray(
-            productsData,
-          )
-            ? productsData
-            : productsData &&
-                Array.isArray(
-                  productsData.products,
-                )
-              ? productsData.products
-              : [];
-
-        const activeCampaign =
-          campaignData.campaign;
 
         const campaignProductIds =
           getCampaignProductIds(
             activeCampaign,
           );
 
-        const campaignProducts =
-          activeCampaign?.status ===
-          "live"
-            ? productList
-                .filter(
-                  (
-                    product,
-                  ) =>
-                    campaignProductIds.has(
-                      getProductIdentity(
-                        product,
-                      ),
-                    ),
-                )
-                .map(
-                  (
-                    product,
-                  ) =>
-                    applyStockClearanceDiscount(
-                      product,
-                      activeCampaign,
-                    ),
-                )
-            : [];
-
-        setCampaign(
-          activeCampaign,
-        );
-
-        setProducts(
-          campaignProducts,
-        );
+        return productList
+          .filter(
+            (product) =>
+              campaignProductIds.has(
+                getProductIdentity(
+                  product,
+                ),
+              ),
+          )
+          .map(
+            (product) =>
+              applyStockClearanceDiscount(
+                product,
+                activeCampaign,
+              ),
+          );
       },
       [],
     );
 
-  useEffect(() => {
-    const controller =
-      new AbortController();
+  /* =======================================================
+     FAST TENANT-SPECIFIC LOAD
+  ======================================================= */
 
-    const run =
+  useEffect(() => {
+    /*
+     * Start immediately as soon as tenantId is known.
+     * On localhost the optimized StorefrontTenantContext exposes
+     * NEXT_PUBLIC_TENANT_ID before full tenant metadata finishes.
+     */
+    if (
+      isTenantLoading &&
+      !tenantId
+    ) {
+      return;
+    }
+
+    if (!tenantId) {
+      setCampaign(null);
+      setProducts([]);
+      setErrorMessage(
+        "Store tenant could not be resolved.",
+      );
+      setIsLoading(false);
+      return;
+    }
+
+    let isComponentActive =
+      true;
+
+    /*
+     * The global storefront Offers prefetch already warms
+     * this exact tenant-specific products + campaign payload.
+     *
+     * When it exists, Stock Clearance renders immediately
+     * instead of showing the large skeleton again.
+     */
+    const cached =
+      getCachedOffersSourceData(
+        tenantId,
+      );
+
+    if (cached) {
+      setCampaign(
+        cached.data.campaign,
+      );
+
+      setProducts(
+        buildCampaignProducts(
+          cached.data.products,
+          cached.data.campaign,
+        ),
+      );
+
+      setErrorMessage("");
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+      setErrorMessage("");
+    }
+
+    const load =
       async () => {
         try {
-          setIsLoading(
-            true,
-          );
+          /*
+           * First visit:
+           * - lightweight /api/products?storefront=shop
+           * - /api/stock-clearance
+           * - both run in parallel inside the shared prefetch utility
+           *
+           * Cached visit:
+           * - content is already visible
+           * - fresh data revalidates quietly in the background
+           */
+          const sourceData =
+            await prefetchOffersSourceData(
+              tenantId,
+              {
+                force:
+                  Boolean(cached),
+              },
+            );
 
-          setErrorMessage(
-            "",
-          );
-
-          await loadCampaign(
-            controller.signal,
-          );
-        } catch (error) {
           if (
-            error instanceof
-              DOMException &&
-            error.name ===
-              "AbortError"
+            !isComponentActive
           ) {
             return;
           }
 
           setCampaign(
-            null,
+            sourceData.campaign,
           );
 
           setProducts(
-            [],
+            buildCampaignProducts(
+              sourceData.products,
+              sourceData.campaign,
+            ),
           );
 
-          setErrorMessage(
-            error instanceof Error
-              ? error.message
-              : "Stock clearance campaign could not be loaded.",
+          setErrorMessage("");
+        } catch (error) {
+          console.error(
+            "Stock clearance loading error:",
+            error,
           );
+
+          if (
+            !isComponentActive
+          ) {
+            return;
+          }
+
+          /*
+           * Keep cached content visible if only a background
+           * revalidation fails.
+           */
+          if (!cached) {
+            setCampaign(null);
+            setProducts([]);
+
+            setErrorMessage(
+              error instanceof Error
+                ? error.message
+                : "Stock clearance campaign could not be loaded.",
+            );
+          }
         } finally {
           if (
-            !controller.signal
-              .aborted
+            isComponentActive
           ) {
-            setIsLoading(
-              false,
-            );
+            setIsLoading(false);
           }
         }
       };
 
-    void run();
+    void load();
 
     return () => {
-      controller.abort();
+      isComponentActive =
+        false;
     };
   }, [
-    loadCampaign,
+    buildCampaignProducts,
+    isTenantLoading,
+    tenantId,
   ]);
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-[#F7F8FA] px-2 pt-4 pb-24 sm:px-4 sm:pt-6 md:pb-10 lg:px-5 lg:pt-8">
+      <main className="min-h-screen bg-[#F7F8FA] px-2 pt-4 pb-32 sm:px-4 sm:pt-6 md:pb-10 lg:px-5 lg:pt-8">
         <div className="mx-auto max-w-[1450px]">
           <div className="h-48 animate-pulse rounded-2xl bg-gray-200" />
           <div className="mt-5 h-96 animate-pulse rounded-2xl bg-gray-200" />
@@ -310,7 +278,7 @@ export default function StockClearancePage() {
 
   if (errorMessage) {
     return (
-      <main className="min-h-screen bg-[#F7F8FA] px-2 pt-4 pb-24 sm:px-4 sm:pt-6 md:pb-10 lg:px-5 lg:pt-8">
+      <main className="min-h-screen bg-[#F7F8FA] px-2 pt-4 pb-32 sm:px-4 sm:pt-6 md:pb-10 lg:px-5 lg:pt-8">
         <div className="mx-auto max-w-[1450px]">
           <div className="rounded-2xl border border-red-200 bg-white p-8 text-center">
             <p className="font-bold text-red-600">
@@ -334,7 +302,7 @@ export default function StockClearancePage() {
 
   return (
     <main className="min-h-screen bg-[#F7F8FA]">
-      <section className="px-2 pt-4 pb-24 sm:px-4 sm:pt-6 md:pb-10 lg:px-5 lg:pt-8">
+      <section className="px-2 pt-4 pb-32 sm:px-4 sm:pt-6 md:pb-10 lg:px-5 lg:pt-8">
         <div className="mx-auto w-full max-w-[1450px]">
           <div className="overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm">
             {campaign?.campaignBanner ? (

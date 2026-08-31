@@ -510,7 +510,7 @@ export default async function Home() {
     ]);
 
   return (
-    <main className="min-h-screen bg-[#f5f5f5]">
+    <main className="min-h-screen bg-[#f5f5f5] pb-24 md:pb-10">
       <Hero
         initialBanners={
           bannersResult.banners

@@ -1,11 +1,21 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useState,
 } from "react";
 
 import ProductGrid from "@/src/components/Products/ProductGrid";
+
+import {
+  useStorefrontTenant,
+} from "@/src/context/StorefrontTenantContext";
+
+import {
+  getCachedOffersSourceData,
+  prefetchOffersSourceData,
+} from "@/src/utils/offersPrefetch";
 
 import type {
   Product,
@@ -31,17 +41,18 @@ const API_BASE_URL =
     "http://localhost:5000"
   ).replace(/\/$/, "");
 
-const TENANT_ID =
-  (
-    process.env.NEXT_PUBLIC_TENANT_ID ??
-    ""
-  ).trim();
-
 /* =========================================================
    OFFERS PAGE
 ========================================================= */
 
 export default function OffersPage() {
+  const {
+    tenantId,
+    isLoading:
+      isTenantLoading,
+  } =
+    useStorefrontTenant();
+
   const [
     products,
     setProducts,
@@ -73,295 +84,235 @@ export default function OffersPage() {
      LOAD NORMAL OFFERS + LIVE STOCK CLEARANCE PRODUCTS
   ======================================================= */
 
+  const buildOffers =
+    useCallback(
+      (
+        productList:
+          Product[],
+        activeCampaign:
+          StockClearanceCampaign |
+          null,
+      ) => {
+        const configuredCampaignProductIds =
+          getConfiguredCampaignProductIds(
+            activeCampaign,
+          );
+
+        const campaignProductIds =
+          getCampaignProductIds(
+            activeCampaign,
+          );
+
+        /*
+         * Campaign-assigned products are controlled only by
+         * the Stock Clearance campaign. When the campaign is
+         * closed/ended they must not fall back into Offers.
+         */
+        const normalOffers =
+          productList.filter(
+            (product) => {
+              const productId =
+                getProductIdentity(
+                  product,
+                );
+
+              if (
+                productId &&
+                configuredCampaignProductIds.has(
+                  productId,
+                )
+              ) {
+                return false;
+              }
+
+              return (
+                Number(
+                  product.oldPrice,
+                ) >
+                Number(
+                  product.price,
+                )
+              );
+            },
+          );
+
+        const campaignOffers =
+          activeCampaign?.status ===
+          "live"
+            ? productList
+                .filter(
+                  (product) =>
+                    campaignProductIds.has(
+                      getProductIdentity(
+                        product,
+                      ),
+                    ),
+                )
+                .map(
+                  (product) =>
+                    applyStockClearanceDiscount(
+                      product,
+                      activeCampaign,
+                    ),
+                )
+            : [];
+
+        const merged =
+          new Map<
+            string,
+            Product
+          >();
+
+        for (
+          const product of
+          normalOffers
+        ) {
+          const id =
+            getProductIdentity(
+              product,
+            );
+
+          if (id) {
+            merged.set(
+              id,
+              product,
+            );
+          }
+        }
+
+        /*
+         * Live campaign pricing wins when the same product is
+         * also a normal discounted product.
+         */
+        for (
+          const product of
+          campaignOffers
+        ) {
+          const id =
+            getProductIdentity(
+              product,
+            );
+
+          if (id) {
+            merged.set(
+              id,
+              product,
+            );
+          }
+        }
+
+        return Array.from(
+          merged.values(),
+        );
+      },
+      [],
+    );
+
   useEffect(() => {
-    const abortController =
-      new AbortController();
+    if (isTenantLoading) {
+      return;
+    }
+
+    if (!tenantId) {
+      setCampaign(null);
+      setProducts([]);
+      setErrorMessage(
+        "Store tenant could not be resolved.",
+      );
+      setIsLoading(false);
+      return;
+    }
 
     let isComponentActive =
       true;
 
+    const cached =
+      getCachedOffersSourceData(
+        tenantId,
+      );
+
+    /*
+     * If MobileBottomNav already prefetched the source data,
+     * render the final offer products immediately — no page
+     * skeleton and no temporary empty state.
+     */
+    if (cached) {
+      const initialOffers =
+        buildOffers(
+          cached.data.products,
+          cached.data.campaign,
+        );
+
+      setCampaign(
+        cached.data.campaign,
+      );
+
+      setProducts(
+        initialOffers,
+      );
+
+      setErrorMessage("");
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+      setErrorMessage("");
+    }
+
     const loadOffers =
       async () => {
         try {
-          setIsLoading(
-            true,
-          );
-
-          setErrorMessage(
-            "",
-          );
-
-          const headers:
-            HeadersInit = {
-            Accept:
-              "application/json",
-          };
-
-          if (TENANT_ID) {
-            headers[
-              "X-Tenant-Id"
-            ] =
-              TENANT_ID;
-          }
-
-          const [
-            productsResponse,
-            campaignResponse,
-          ] =
-            await Promise.all([
-              fetch(
-                `${API_BASE_URL}/api/products`,
-                {
-                  method:
-                    "GET",
-
-                  cache:
-                    "no-store",
-
-                  credentials:
-                    "include",
-
-                  signal:
-                    abortController.signal,
-
-                  headers,
-                },
-              ),
-
-              fetch(
-                `${API_BASE_URL}/api/stock-clearance`,
-                {
-                  method:
-                    "GET",
-
-                  cache:
-                    "no-store",
-
-                  credentials:
-                    "include",
-
-                  signal:
-                    abortController.signal,
-
-                  headers,
-                },
-              ),
-            ]);
-
-          const productsData =
-            (await productsResponse
-              .json()
-              .catch(
-                () => null,
-              )) as
-              | ProductsApiResponse
-              | Product[]
-              | null;
-
-          const campaignData =
-            (await campaignResponse
-              .json()
-              .catch(
-                () => null,
-              )) as
-              | StockClearanceApiResponse
-              | null;
-
-          if (
-            !productsResponse.ok
-          ) {
-            const apiMessage =
-              productsData &&
-              !Array.isArray(
-                productsData,
-              )
-                ? productsData.message
-                : undefined;
-
-            throw new Error(
-              apiMessage ||
-                `Products could not be loaded. Status: ${productsResponse.status}`,
-            );
-          }
-
-          if (
-            !campaignResponse.ok ||
-            !campaignData?.success
-          ) {
-            throw new Error(
-              campaignData?.message ||
-                `Stock clearance campaign could not be loaded. Status: ${campaignResponse.status}`,
-            );
-          }
-
-          const productList =
-            Array.isArray(
-              productsData,
-            )
-              ? productsData
-              : productsData &&
-                  Array.isArray(
-                    productsData.products,
-                  )
-                ? productsData.products
-                : [];
-
-          const activeCampaign =
-            campaignData.campaign;
-
-          const configuredCampaignProductIds =
-            getConfiguredCampaignProductIds(
-              activeCampaign,
-            );
-
-          const campaignProductIds =
-            getCampaignProductIds(
-              activeCampaign,
-            );
-
           /*
-           * Campaign-assigned products are controlled only by
-           * the Stock Clearance campaign. When the campaign is
-           * closed/ended they must not fall back into Offers.
+           * Cached data can be rendered immediately while a forced
+           * refresh happens quietly in the background. First visit
+           * waits only for this single shared prefetch promise.
            */
-          const normalOffers =
-            productList.filter(
-              (
-                product,
-              ) => {
-                const productId =
-                  getProductIdentity(
-                    product,
-                  );
-
-                if (
-                  productId &&
-                  configuredCampaignProductIds.has(
-                    productId,
-                  )
-                ) {
-                  return false;
-                }
-
-                return (
-                  Number(
-                    product.oldPrice,
-                  ) >
-                  Number(
-                    product.price,
-                  )
-                );
+          const sourceData =
+            await prefetchOffersSourceData(
+              tenantId,
+              {
+                force:
+                  Boolean(cached),
               },
             );
 
-          const campaignOffers =
-            activeCampaign?.status ===
-            "live"
-              ? productList
-                  .filter(
-                    (
-                      product,
-                    ) =>
-                      campaignProductIds.has(
-                        getProductIdentity(
-                          product,
-                        ),
-                      ),
-                  )
-                  .map(
-                    (
-                      product,
-                    ) =>
-                      applyStockClearanceDiscount(
-                        product,
-                        activeCampaign,
-                      ),
-                  )
-              : [];
-
-          const merged =
-            new Map<
-              string,
-              Product
-            >();
-
-          for (
-            const product of
-            normalOffers
-          ) {
-            const id =
-              getProductIdentity(
-                product,
-              );
-
-            if (id) {
-              merged.set(
-                id,
-                product,
-              );
-            }
-          }
-
-          /*
-           * Live campaign version is intentionally added last
-           * so campaign pricing wins if a product is already
-           * a normal discounted product.
-           */
-          for (
-            const product of
-            campaignOffers
-          ) {
-            const id =
-              getProductIdentity(
-                product,
-              );
-
-            if (id) {
-              merged.set(
-                id,
-                product,
-              );
-            }
-          }
-
           if (
-            isComponentActive
-          ) {
-            setCampaign(
-              activeCampaign,
-            );
-
-            setProducts(
-              Array.from(
-                merged.values(),
-              ),
-            );
-          }
-        } catch (error) {
-          if (
-            error instanceof
-              DOMException &&
-            error.name ===
-              "AbortError"
+            !isComponentActive
           ) {
             return;
           }
 
+          setCampaign(
+            sourceData.campaign,
+          );
+
+          setProducts(
+            buildOffers(
+              sourceData.products,
+              sourceData.campaign,
+            ),
+          );
+
+          setErrorMessage("");
+        } catch (error) {
           console.error(
             "Offers products loading error:",
             error,
           );
 
           if (
-            isComponentActive
+            !isComponentActive
           ) {
-            setCampaign(
-              null,
-            );
+            return;
+          }
 
-            setProducts(
-              [],
-            );
+          /*
+           * If prefetched/cached products are already visible,
+           * do not replace them with an error screen because a
+           * background refresh failed.
+           */
+          if (!cached) {
+            setCampaign(null);
+            setProducts([]);
 
             setErrorMessage(
               error instanceof
@@ -372,14 +323,9 @@ export default function OffersPage() {
           }
         } finally {
           if (
-            isComponentActive &&
-            !abortController
-              .signal
-              .aborted
+            isComponentActive
           ) {
-            setIsLoading(
-              false,
-            );
+            setIsLoading(false);
           }
         }
       };
@@ -389,10 +335,12 @@ export default function OffersPage() {
     return () => {
       isComponentActive =
         false;
-
-      abortController.abort();
     };
-  }, []);
+  }, [
+    buildOffers,
+    isTenantLoading,
+    tenantId,
+  ]);
 
   /* =======================================================
      LOADING UI
@@ -401,7 +349,7 @@ export default function OffersPage() {
   if (isLoading) {
     return (
       <main className="min-h-screen w-full bg-[#F7F8FA]">
-        <section className="w-full px-3 py-6 sm:px-4 lg:px-5 lg:py-8">
+        <section className="w-full px-3 pt-6 pb-24 sm:px-4 md:pb-10 lg:px-5 lg:pt-8">
           <div className="mx-auto w-full max-w-[1450px]">
             <div className="mb-5 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -453,7 +401,7 @@ export default function OffersPage() {
   if (errorMessage) {
     return (
       <main className="min-h-screen w-full bg-[#F7F8FA]">
-        <section className="w-full px-3 py-6 sm:px-4 lg:px-5 lg:py-8">
+        <section className="w-full px-3 pt-6 pb-24 sm:px-4 md:pb-10 lg:px-5 lg:pt-8">
           <div className="mx-auto w-full max-w-[1450px]">
             <div className="rounded-2xl border border-red-200 bg-white p-8 text-center shadow-sm">
               <p className="font-bold text-red-600">
@@ -478,7 +426,7 @@ export default function OffersPage() {
 
   return (
     <main className="min-h-screen w-full bg-[#F7F8FA]">
-      <section className="w-full px-3 py-6 sm:px-4 lg:px-5 lg:py-8">
+      <section className="w-full px-3 pt-6 pb-24 sm:px-4 md:pb-10 lg:px-5 lg:pt-8">
         <div className="mx-auto w-full max-w-[1450px]">
           <div className="mb-5 flex w-full flex-nowrap items-center justify-between gap-3 overflow-x-auto">
             <div className="flex shrink-0 flex-nowrap items-center gap-2 whitespace-nowrap">

@@ -22,6 +22,17 @@ const LOCAL_TENANT_ID =
   process.env.NEXT_PUBLIC_TENANT_ID ??
   "";
 
+/*
+ * Storefront tenant resolution is needed by many pages before
+ * their own API requests can start. A short session cache avoids
+ * serial tenant-resolution waits on repeat navigation/refreshes.
+ */
+const TENANT_CACHE_TTL_MS =
+  5 * 60 * 1000;
+
+const TENANT_CACHE_PREFIX =
+  "townmela:storefront-tenant:";
+
 /* =========================================================
    TYPES
 ========================================================= */
@@ -162,6 +173,112 @@ function extractTenant(
   } satisfies StorefrontTenant;
 }
 
+type CachedStorefrontTenant = {
+  tenant: StorefrontTenant;
+  timestamp: number;
+};
+
+function getTenantCacheKey(
+  hostname: string,
+) {
+  return `${TENANT_CACHE_PREFIX}${hostname}`;
+}
+
+function readCachedTenant(
+  hostname: string,
+): StorefrontTenant | null {
+  if (
+    typeof window ===
+    "undefined" ||
+    !hostname
+  ) {
+    return null;
+  }
+
+  try {
+    const raw =
+      window.sessionStorage.getItem(
+        getTenantCacheKey(
+          hostname,
+        ),
+      );
+
+    if (!raw) {
+      return null;
+    }
+
+    const parsed =
+      JSON.parse(
+        raw,
+      ) as CachedStorefrontTenant;
+
+    const cachedTenantId =
+      String(
+        parsed?.tenant?._id ||
+          parsed?.tenant?.tenantId ||
+          "",
+      ).trim();
+
+    if (
+      !cachedTenantId ||
+      !Number.isFinite(
+        Number(
+          parsed?.timestamp,
+        ),
+      ) ||
+      Date.now() -
+        Number(
+          parsed.timestamp,
+        ) >
+        TENANT_CACHE_TTL_MS
+    ) {
+      window.sessionStorage.removeItem(
+        getTenantCacheKey(
+          hostname,
+        ),
+      );
+
+      return null;
+    }
+
+    return {
+      ...parsed.tenant,
+      _id:
+        cachedTenantId,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedTenant(
+  hostname: string,
+  tenant: StorefrontTenant,
+) {
+  if (
+    typeof window ===
+    "undefined" ||
+    !hostname
+  ) {
+    return;
+  }
+
+  try {
+    window.sessionStorage.setItem(
+      getTenantCacheKey(
+        hostname,
+      ),
+      JSON.stringify({
+        tenant,
+        timestamp:
+          Date.now(),
+      } satisfies CachedStorefrontTenant),
+    );
+  } catch {
+    // Session cache is optional.
+  }
+}
+
 /* =========================================================
    CONTEXT
 ========================================================= */
@@ -215,58 +332,82 @@ export function StorefrontTenantProvider({
         return;
       }
 
-      try {
-        setIsLoading(true);
-        setError("");
-
-        const currentHostname =
-          normalizeHostname(
-            window.location.hostname,
-          );
-
-        setHostname(
-          currentHostname,
+      const currentHostname =
+        normalizeHostname(
+          window.location.hostname,
         );
 
-        /* =================================================
-           LOCAL DEVELOPMENT
+      setHostname(
+        currentHostname,
+      );
 
-           On localhost only, reuse the existing
-           NEXT_PUBLIC_TENANT_ID environment value.
+      setError("");
 
-           IMPORTANT:
-           This fallback is intentionally NOT used on
-           custom production domains, so one tenant cannot
-           accidentally override another tenant by build env.
-        ================================================= */
+      /*
+       * LOCAL DEVELOPMENT
+       *
+       * NEXT_PUBLIC_TENANT_ID is already authoritative on localhost.
+       * Make that tenant ID available IMMEDIATELY so Shop / Offers /
+       * Stock Clearance requests can start without waiting for a
+       * second tenant-details request first.
+       */
+      if (
+        isLocalHostname(
+          currentHostname,
+        )
+      ) {
+        const localTenantId =
+          String(
+            LOCAL_TENANT_ID,
+          ).trim();
+
+        if (!localTenantId) {
+          setTenant(null);
+          setIsLoading(false);
+
+          setError(
+            "NEXT_PUBLIC_TENANT_ID is required for localhost storefront development.",
+          );
+
+          return;
+        }
+
+        const cachedTenant =
+          readCachedTenant(
+            currentHostname,
+          );
 
         if (
-          isLocalHostname(
-            currentHostname,
-          )
+          cachedTenant &&
+          String(
+            cachedTenant._id,
+          ) ===
+            localTenantId
         ) {
-          const localTenantId =
-            String(
-              LOCAL_TENANT_ID,
-            ).trim();
-
-          if (!localTenantId) {
-            throw new Error(
-              "NEXT_PUBLIC_TENANT_ID is required for localhost storefront development.",
-            );
-          }
-
+          setTenant(
+            cachedTenant,
+          );
+        } else {
           /*
-           * LOCALHOST MUST LOAD THE REAL TENANT RECORD.
+           * This single state update removes the previous serial
+           * waterfall:
+           * tenant details -> page API -> products.
            *
-           * Previously only {_id} was stored here, so fields such
-           * as tenant.storeName were unavailable and storefront
-           * components fell back to Header Business Name.
-           *
-           * We now load the actual tenant record so Store Name is
-           * available exactly like it is on a custom domain.
+           * Pages can now begin their tenant-specific API calls now.
            */
+          setTenant({
+            _id:
+              localTenantId,
+          });
+        }
 
+        setIsLoading(false);
+
+        /*
+         * Full tenant details (Store Name, branding, etc.) are still
+         * refreshed in the background and merged when available.
+         */
+        try {
           const token =
             getStoredAdminToken();
 
@@ -277,6 +418,7 @@ export function StorefrontTenantProvider({
               )}`,
               {
                 method: "GET",
+
                 headers: {
                   Accept:
                     "application/json",
@@ -291,8 +433,10 @@ export function StorefrontTenantProvider({
                   "X-Tenant-Id":
                     localTenantId,
                 },
+
                 cache:
                   "no-store",
+
                 credentials:
                   "include",
               },
@@ -321,29 +465,48 @@ export function StorefrontTenantProvider({
               localTenant,
             );
 
-            return;
+            writeCachedTenant(
+              currentHostname,
+              localTenant,
+            );
           }
-
+        } catch (tenantError) {
           /*
-           * Keep localhost storefront usable even when the
-           * protected tenant-details route is unavailable.
-           * In that case only the tenant ID is retained.
+           * Keep the immediate {_id} tenant usable.
+           * A background metadata refresh must not block storefront.
            */
-          setTenant({
-            _id:
-              localTenantId,
-          });
-
-          return;
+          console.warn(
+            "Local storefront tenant metadata refresh error:",
+            tenantError,
+          );
         }
 
-        /* =================================================
-           CUSTOM DOMAIN
+        return;
+      }
 
-           Resolve the active tenant from the storefront
-           hostname using the existing public backend route.
-        ================================================= */
+      /*
+       * CUSTOM DOMAIN
+       *
+       * Reuse a valid short session cache immediately. This makes
+       * repeat navigation and reloads start page APIs without another
+       * serial domain-resolution wait.
+       */
+      const cachedTenant =
+        readCachedTenant(
+          currentHostname,
+        );
 
+      if (cachedTenant) {
+        setTenant(
+          cachedTenant,
+        );
+
+        setIsLoading(false);
+      } else {
+        setIsLoading(true);
+      }
+
+      try {
         const response =
           await fetch(
             `${API_BASE_URL}/api/tenants/domain/${encodeURIComponent(
@@ -351,10 +514,12 @@ export function StorefrontTenantProvider({
             )}`,
             {
               method: "GET",
+
               headers: {
                 Accept:
                   "application/json",
               },
+
               cache:
                 "no-store",
             },
@@ -393,19 +558,30 @@ export function StorefrontTenantProvider({
         setTenant(
           resolvedTenant,
         );
+
+        writeCachedTenant(
+          currentHostname,
+          resolvedTenant,
+        );
       } catch (tenantError) {
         console.error(
           "Storefront tenant resolution error:",
           tenantError,
         );
 
-        setTenant(null);
+        /*
+         * Keep an already-cached tenant available if background
+         * revalidation fails. Only clear when no usable tenant exists.
+         */
+        if (!cachedTenant) {
+          setTenant(null);
 
-        setError(
-          tenantError instanceof Error
-            ? tenantError.message
-            : "Store tenant could not be resolved.",
-        );
+          setError(
+            tenantError instanceof Error
+              ? tenantError.message
+              : "Store tenant could not be resolved.",
+          );
+        }
       } finally {
         setIsLoading(false);
       }
