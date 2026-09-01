@@ -124,9 +124,16 @@ type HomepageProductSectionSettingsApiResponse = {
    API CONFIGURATION
 ========================================================= */
 
-const API_URL = `${(
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000"
-).replace(/\/$/, "")}/api`;
+const API_URL = `${
+  (
+    typeof window !== "undefined"
+      ? window.location.origin
+      : (
+          process.env.NEXT_PUBLIC_API_URL ??
+          "http://localhost:5000"
+        )
+  ).replace(/\/$/, "")
+}/api`;
 
 const POPULAR_CATEGORIES_UPDATED_EVENT = "homepage:popular-categories-updated";
 

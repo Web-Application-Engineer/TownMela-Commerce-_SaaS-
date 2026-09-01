@@ -16,8 +16,12 @@ import {
 } from "react";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:5000";
+  typeof window !== "undefined"
+    ? window.location.origin
+    : (
+        process.env.NEXT_PUBLIC_API_URL ??
+        "http://localhost:5000"
+      );
 
 type ChangePasswordResponse = {
   success?: boolean;

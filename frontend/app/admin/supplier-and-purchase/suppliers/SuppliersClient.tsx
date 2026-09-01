@@ -5,10 +5,13 @@ import Link from "next/link";
 import { useTenant } from "@/src/context/TenantContext";
 import { useCallback, useEffect, useState } from "react";
 
-const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5000"
-).replace(/\/+$/, "");
+const API_URL =
+  typeof window !== "undefined"
+    ? window.location.origin.replace(/\/+$/, "")
+    : (
+        process.env.NEXT_PUBLIC_API_URL ||
+        "http://localhost:5000"
+      ).replace(/\/+$/, "");
 
 const getStorageValue = (keys: string[]): string => {
   if (typeof window === "undefined") return "";

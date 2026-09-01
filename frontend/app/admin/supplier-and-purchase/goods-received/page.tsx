@@ -20,10 +20,13 @@ import {
    CONFIGURATION
 ========================================================= */
 
-const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5000"
-).replace(/\/+$/, "");
+const API_URL =
+  typeof window !== "undefined"
+    ? window.location.origin.replace(/\/+$/, "")
+    : (
+        process.env.NEXT_PUBLIC_API_URL ||
+        "http://localhost:5000"
+      ).replace(/\/+$/, "");
 
 const PAGE_SIZE = 20;
 const REQUEST_TIMEOUT_MS = 15000;

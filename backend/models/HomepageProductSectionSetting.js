@@ -39,7 +39,6 @@ const homepageProductSectionItemSchema =
        */
       layoutOrder: {
         type: Number,
-        default: 1,
         min: 1,
       },
     },

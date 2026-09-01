@@ -17,10 +17,13 @@ import {
    API CONFIGURATION
 ========================================================= */
 
-const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:5000"
-).replace(/\/$/, "");
+const API_BASE_URL =
+  typeof window !== "undefined"
+    ? window.location.origin.replace(/\/$/, "")
+    : (
+        process.env.NEXT_PUBLIC_API_URL ??
+        "http://localhost:5000"
+      ).replace(/\/$/, "");
 
 /* =========================================================
    TYPES
