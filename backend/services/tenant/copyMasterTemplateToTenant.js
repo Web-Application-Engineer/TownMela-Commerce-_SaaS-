@@ -1366,6 +1366,52 @@ const copyMasterTemplateToTenant =
       const productIdMap =
         new Map();
 
+      const referencedProductCategoryIds =
+        [
+          ...new Set(
+            masterProducts
+              .filter(
+                (product) =>
+                  Boolean(
+                    product.category
+                  )
+              )
+              .map(
+                (product) =>
+                  String(
+                    product.category
+                  )
+              )
+          ),
+        ];
+
+      const referencedProductCategories =
+        referencedProductCategoryIds.length >
+        0
+          ? await Category.find({
+              _id: {
+                $in:
+                  referencedProductCategoryIds,
+              },
+            })
+              .select(
+                "_id +tenant"
+              )
+              .lean()
+          : [];
+
+      const sourceProductCategoryById =
+        new Map(
+          referencedProductCategories.map(
+            (category) => [
+              String(
+                category._id
+              ),
+              category,
+            ]
+          )
+        );
+
       const productDocuments =
         masterProducts.map(
           (product) => {
@@ -1394,20 +1440,62 @@ const copyMasterTemplateToTenant =
               hasSourceCategory &&
               !mappedCategoryId
             ) {
-              throw createProvisioningError(
-                `Unable to map category for product "${product.name || product.slug || product._id}"`,
-                "PRODUCT_CATEGORY_MAPPING_FAILED",
-                {
-                  productId:
-                    String(
-                      product._id
-                    ),
-                  categoryId:
-                    String(
-                      product.category
-                    ),
-                }
-              );
+              const sourceCategory =
+                sourceProductCategoryById.get(
+                  String(
+                    product.category
+                  )
+                );
+
+              /*
+               * Missing source category means this is a legacy
+               * orphan reference. Preserve the product and copy
+               * it with category:null.
+               */
+              if (!sourceCategory) {
+                // Keep mappedCategoryId as null.
+              } else if (
+                String(
+                  sourceCategory.tenant
+                ) !==
+                String(
+                  masterTenantId
+                )
+              ) {
+                throw createProvisioningError(
+                  `Cross-tenant category reference found for product "${product.name || product.slug || product._id}"`,
+                  "PRODUCT_CATEGORY_CROSS_TENANT",
+                  {
+                    productId:
+                      String(
+                        product._id
+                      ),
+                    categoryId:
+                      String(
+                        product.category
+                      ),
+                    categoryTenantId:
+                      String(
+                        sourceCategory.tenant
+                      ),
+                  }
+                );
+              } else {
+                throw createProvisioningError(
+                  `Unable to map category for product "${product.name || product.slug || product._id}"`,
+                  "PRODUCT_CATEGORY_MAPPING_FAILED",
+                  {
+                    productId:
+                      String(
+                        product._id
+                      ),
+                    categoryId:
+                      String(
+                        product.category
+                      ),
+                  }
+                );
+              }
             }
 
             return {
