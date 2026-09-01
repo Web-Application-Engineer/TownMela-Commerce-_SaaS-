@@ -176,11 +176,49 @@ export default function Header() {
             categoryList,
           );
 
-        setCategories(
+        const nextCategories =
           cleanCategories.length > 0
             ? cleanCategories
-            : fallbackCategories,
+            : fallbackCategories;
+
+        setCategories(
+          nextCategories,
         );
+
+        try {
+          const currentHostname =
+            window.location.hostname;
+
+          const isLocal =
+            [
+              "localhost",
+              "127.0.0.1",
+              "::1",
+            ].includes(
+              currentHostname,
+            );
+
+          const localTenantId =
+            (
+              process.env
+                .NEXT_PUBLIC_TENANT_ID ??
+              ""
+            ).trim();
+
+          const cacheScope =
+            isLocal
+              ? `${currentHostname}:${localTenantId || "default"}`
+              : currentHostname || "default";
+
+          window.localStorage.setItem(
+            `townmela:header-categories:${cacheScope}`,
+            JSON.stringify(
+              nextCategories,
+            ),
+          );
+        } catch {
+          // Browser storage unavailable.
+        }
       } catch (error) {
         console.error(
           "Header category loading error:",
@@ -278,6 +316,56 @@ export default function Header() {
   ======================================================= */
 
   useEffect(() => {
+    try {
+      const currentHostname =
+        window.location.hostname;
+
+      const isLocal =
+        [
+          "localhost",
+          "127.0.0.1",
+          "::1",
+        ].includes(
+          currentHostname,
+        );
+
+      const localTenantId =
+        (
+          process.env
+            .NEXT_PUBLIC_TENANT_ID ??
+          ""
+        ).trim();
+
+      const cacheScope =
+        isLocal
+          ? `${currentHostname}:${localTenantId || "default"}`
+          : currentHostname || "default";
+
+      const cachedRaw =
+        window.localStorage.getItem(
+          `townmela:header-categories:${cacheScope}`,
+        );
+
+      if (cachedRaw) {
+        const cachedCategories =
+          prepareCategories(
+            JSON.parse(
+              cachedRaw,
+            ) as Category[],
+          );
+
+        if (
+          cachedCategories.length > 0
+        ) {
+          setCategories(
+            cachedCategories,
+          );
+        }
+      }
+    } catch {
+      // Ignore invalid or unavailable cache.
+    }
+
     void loadCategories();
 
     const handleCategoriesUpdated =
@@ -679,7 +767,8 @@ export default function Header() {
             categories
           }
           isLoading={
-            isCategoriesLoading
+            isCategoriesLoading &&
+            categories.length === 0
           }
           pathname={
             pathname
@@ -701,7 +790,8 @@ export default function Header() {
           categories
         }
         isCategoriesLoading={
-          isCategoriesLoading
+          isCategoriesLoading &&
+          categories.length === 0
         }
         onClose={() =>
           setIsMobileDrawerOpen(

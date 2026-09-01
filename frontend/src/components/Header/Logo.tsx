@@ -33,7 +33,11 @@ export default function Logo() {
      LOADING FALLBACK
   ======================================================= */
 
-  if (isLoading) {
+  if (
+    isLoading &&
+    !desktopLogo &&
+    !mobileLogo
+  ) {
     return (
       <div className="flex shrink-0 items-center sm:w-[240px]">
         <div className="h-8 w-28 animate-pulse rounded-md bg-white/10" />

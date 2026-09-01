@@ -240,7 +240,7 @@ export function HeaderSettingsProvider({
           payload.data ||
           {};
 
-        setSettings({
+        const nextSettings: HeaderSettings = {
           ...defaultHeaderSettings,
 
           ...data,
@@ -251,7 +251,37 @@ export function HeaderSettingsProvider({
             )
               ? data.menus
               : [],
-        });
+        };
+
+        setSettings(nextSettings);
+
+        try {
+          const currentHostname =
+            typeof window !== "undefined"
+              ? window.location.hostname
+              : "";
+
+          const isLocal =
+            [
+              "localhost",
+              "127.0.0.1",
+              "::1",
+            ].includes(
+              currentHostname,
+            );
+
+          const cacheScope =
+            isLocal
+              ? `${currentHostname}:${DEFAULT_TENANT_ID || "default"}`
+              : currentHostname || "default";
+
+          window.localStorage.setItem(
+            `townmela:header-settings:${cacheScope}`,
+            JSON.stringify(nextSettings),
+          );
+        } catch {
+          // Browser storage unavailable.
+        }
       } catch (error) {
         console.error(
           "Public header settings load error:",
@@ -277,6 +307,51 @@ export function HeaderSettingsProvider({
   ======================================================= */
 
   useEffect(() => {
+    try {
+      const currentHostname =
+        window.location.hostname;
+
+      const isLocal =
+        [
+          "localhost",
+          "127.0.0.1",
+          "::1",
+        ].includes(
+          currentHostname,
+        );
+
+      const cacheScope =
+        isLocal
+          ? `${currentHostname}:${DEFAULT_TENANT_ID || "default"}`
+          : currentHostname || "default";
+
+      const cachedRaw =
+        window.localStorage.getItem(
+          `townmela:header-settings:${cacheScope}`,
+        );
+
+      if (cachedRaw) {
+        const cachedSettings =
+          JSON.parse(
+            cachedRaw,
+          ) as Partial<HeaderSettings>;
+
+        setSettings({
+          ...defaultHeaderSettings,
+          ...cachedSettings,
+
+          menus:
+            Array.isArray(
+              cachedSettings.menus,
+            )
+              ? cachedSettings.menus
+              : [],
+        });
+      }
+    } catch {
+      // Ignore invalid or unavailable cache.
+    }
+
     void refreshHeaderSettings();
   }, [
     refreshHeaderSettings,
