@@ -645,9 +645,10 @@ const addToCart = async (
     ===================================================== */
 
     const product =
-      await Product.findById(
-        productId
-      );
+      await Product.findOne({
+        _id: productId,
+        tenant: req.tenantId,
+      });
 
     if (!product) {
       return res.status(404).json({
@@ -719,8 +720,8 @@ const addToCart = async (
 
     let cart =
       await Cart.findOne({
-        guestId:
-          normalizedGuestId,
+        tenant: req.tenantId,
+        guestId: normalizedGuestId,
       });
 
     /* =====================================================
@@ -743,8 +744,8 @@ const addToCart = async (
       }
 
       cart = await Cart.create({
-        guestId:
-          normalizedGuestId,
+        tenant: req.tenantId,
+        guestId: normalizedGuestId,
 
         items: [
           {
@@ -893,8 +894,8 @@ const getCart = async (
 
     const cart =
       await Cart.findOne({
-        guestId:
-          normalizedGuestId,
+        tenant: req.tenantId,
+        guestId: normalizedGuestId,
       }).populate({
         path: "items.product",
         select: "+tenant",
@@ -1016,13 +1017,14 @@ const updateCartQuantity =
       const [cart, product] =
         await Promise.all([
           Cart.findOne({
-            guestId:
-              normalizedGuestId,
-          }),
+        tenant: req.tenantId,
+        guestId: normalizedGuestId,
+      }),
 
-          Product.findById(
-            productId
-          ),
+          Product.findOne({
+        _id: productId,
+        tenant: req.tenantId,
+      }),
         ]);
 
       if (!cart) {
@@ -1222,9 +1224,9 @@ const removeFromCart =
 
       const cart =
         await Cart.findOne({
-          guestId:
-            normalizedGuestId,
-        });
+        tenant: req.tenantId,
+        guestId: normalizedGuestId,
+      });
 
       if (!cart) {
         return res
@@ -1351,8 +1353,8 @@ const clearCart = async (
 
     const cart =
       await Cart.findOne({
-        guestId:
-          normalizedGuestId,
+        tenant: req.tenantId,
+        guestId: normalizedGuestId,
       });
 
     if (!cart) {

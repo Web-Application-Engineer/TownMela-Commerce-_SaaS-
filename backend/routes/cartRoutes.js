@@ -1,5 +1,9 @@
 const express = require("express");
 
+const resolvePublicTenant = require(
+  "../middleware/resolvePublicTenant"
+);
+
 const {
   addToCart,
   getCart,
@@ -9,6 +13,8 @@ const {
 } = require("../controllers/cartController");
 
 const router = express.Router();
+
+router.use(resolvePublicTenant);
 
 /* =========================================================
    GUEST CART ROUTES

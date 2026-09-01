@@ -1,4 +1,8 @@
 const express = require("express");
+
+const resolvePublicTenant = require(
+  "../middleware/resolvePublicTenant"
+);
 const {
   addToWishlist,
   getWishlist,
@@ -6,6 +10,8 @@ const {
 } = require("../controllers/wishlistController");
 
 const router = express.Router();
+
+router.use(resolvePublicTenant);
 
 // Add product to wishlist
 router.post("/", addToWishlist);

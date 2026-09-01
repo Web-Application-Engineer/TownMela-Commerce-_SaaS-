@@ -89,6 +89,12 @@ const cartItemSchema = new mongoose.Schema(
 
 const cartSchema = new mongoose.Schema(
   {
+    tenant: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Tenant",
+      required: true,
+    },
+
     /*
       প্রতিটি browser/device-এর জন্য একটি unique guestId থাকবে।
 
@@ -99,7 +105,6 @@ const cartSchema = new mongoose.Schema(
     guestId: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
 
       match: [
@@ -124,11 +129,12 @@ const cartSchema = new mongoose.Schema(
 
 cartSchema.index(
   {
+    tenant: 1,
     guestId: 1,
   },
   {
     unique: true,
-    name: "unique_guest_cart",
+    name: "unique_tenant_guest_cart",
   }
 );
 

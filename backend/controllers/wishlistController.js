@@ -1,5 +1,6 @@
 const Wishlist = require("../models/Wishlist");
 const Product = require("../models/product");
+const User = require("../models/User");
 
 // Add product to wishlist
 const addToWishlist = async (req, res) => {
@@ -13,7 +14,25 @@ const addToWishlist = async (req, res) => {
       });
     }
 
-    const product = await Product.findById(productId);
+    const [user, product] = await Promise.all([
+      User.findOne({
+        _id: userId,
+        tenant: req.tenantId,
+        isDeleted: { $ne: true },
+      }),
+
+      Product.findOne({
+        _id: productId,
+        tenant: req.tenantId,
+      }),
+    ]);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
 
     if (!product) {
       return res.status(404).json({
@@ -22,10 +41,14 @@ const addToWishlist = async (req, res) => {
       });
     }
 
-    let wishlist = await Wishlist.findOne({ user: userId });
+    let wishlist = await Wishlist.findOne({
+      tenant: req.tenantId,
+      user: userId,
+    });
 
     if (!wishlist) {
       wishlist = await Wishlist.create({
+        tenant: req.tenantId,
         user: userId,
         products: [productId],
       });
@@ -64,9 +87,23 @@ const getWishlist = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    const wishlist = await Wishlist.findOne({ user: userId }).populate(
-      "products"
-    );
+    const user = await User.findOne({
+      _id: userId,
+      tenant: req.tenantId,
+      isDeleted: { $ne: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const wishlist = await Wishlist.findOne({
+      tenant: req.tenantId,
+      user: userId,
+    }).populate("products");
 
     if (!wishlist) {
       return res.status(404).json({
@@ -100,7 +137,23 @@ const removeFromWishlist = async (req, res) => {
       });
     }
 
-    const wishlist = await Wishlist.findOne({ user: userId });
+    const user = await User.findOne({
+      _id: userId,
+      tenant: req.tenantId,
+      isDeleted: { $ne: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const wishlist = await Wishlist.findOne({
+      tenant: req.tenantId,
+      user: userId,
+    });
 
     if (!wishlist) {
       return res.status(404).json({
@@ -128,7 +181,6 @@ const removeFromWishlist = async (req, res) => {
     });
   }
 };
-
 
 module.exports = {
   addToWishlist,

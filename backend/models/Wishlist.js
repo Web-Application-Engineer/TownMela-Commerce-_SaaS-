@@ -2,11 +2,16 @@ const mongoose = require("mongoose");
 
 const wishlistSchema = new mongoose.Schema(
   {
+    tenant: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Tenant",
+      required: true,
+    },
+
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      unique: true,
     },
 
     products: [
@@ -18,6 +23,17 @@ const wishlistSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+  }
+);
+
+wishlistSchema.index(
+  {
+    tenant: 1,
+    user: 1,
+  },
+  {
+    unique: true,
+    name: "unique_tenant_user_wishlist",
   }
 );
 
