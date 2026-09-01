@@ -509,7 +509,7 @@ export function StorefrontTenantProvider({
       try {
         const response =
           await fetch(
-            `${API_BASE_URL}/api/tenants/domain/${encodeURIComponent(
+            `${window.location.origin}/api/tenants/domain/${encodeURIComponent(
               currentHostname,
             )}`,
             {

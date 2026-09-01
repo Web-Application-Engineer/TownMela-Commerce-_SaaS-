@@ -127,9 +127,14 @@ export default function Header() {
           true,
         );
 
+        const categoryApiBaseUrl =
+          typeof window !== "undefined"
+            ? window.location.origin
+            : API_BASE_URL;
+
         const response =
           await fetch(
-            `${API_BASE_URL}/api/categories`,
+            `${categoryApiBaseUrl}/api/categories`,
             {
               method: "GET",
               cache: "no-store",

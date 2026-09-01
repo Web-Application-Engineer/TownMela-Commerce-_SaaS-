@@ -44,6 +44,55 @@ const API_BASE_URL =
 const TENANT_ID =
   process.env.NEXT_PUBLIC_TENANT_ID ?? "";
 
+const getStorefrontApiBaseUrl = () => {
+  if (typeof window === "undefined") {
+    return API_BASE_URL;
+  }
+
+  const hostname =
+    window.location.hostname;
+
+  const isLocalRequest =
+    [
+      "localhost",
+      "127.0.0.1",
+      "::1",
+    ].includes(hostname);
+
+  return isLocalRequest
+    ? API_BASE_URL
+    : window.location.origin;
+};
+
+const getStorefrontTenantHeaders = (): Record<string, string> => {
+  if (typeof window === "undefined") {
+    return TENANT_ID
+      ? {
+          "X-Tenant-Id":
+            TENANT_ID,
+        }
+      : {};
+  }
+
+  const hostname =
+    window.location.hostname;
+
+  const isLocalRequest =
+    [
+      "localhost",
+      "127.0.0.1",
+      "::1",
+    ].includes(hostname);
+
+  return isLocalRequest &&
+    TENANT_ID
+    ? {
+        "X-Tenant-Id":
+          TENANT_ID,
+      }
+    : {};
+};
+
 const DELIVERY_CHARGE =
   Number(process.env.NEXT_PUBLIC_DELIVERY_CHARGE ?? 80) || 0;
 
@@ -769,14 +818,14 @@ export default function CheckoutPageClient() {
       setCartErrorMessage("");
 
       const response = await fetch(
-        `${API_BASE_URL}/api/cart/${encodeURIComponent(guestId)}`,
+        `${getStorefrontApiBaseUrl()}/api/cart/${encodeURIComponent(guestId)}`,
         {
           method: "GET",
           cache: "no-store",
           headers: {
             Accept: "application/json",
             "Content-Type": "application/json",
-            "X-Tenant-Id": TENANT_ID,
+            ...getStorefrontTenantHeaders(),
           },
         },
       );
@@ -969,14 +1018,14 @@ export default function CheckoutPageClient() {
       );
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/products`, {
+        const response = await fetch(`${getStorefrontApiBaseUrl()}/api/products`, {
           method: "GET",
           cache: "no-store",
 
           headers: {
             Accept: "application/json",
             "Content-Type": "application/json",
-            "X-Tenant-Id": TENANT_ID,
+            ...getStorefrontTenantHeaders(),
           },
         });
 
@@ -1088,13 +1137,13 @@ export default function CheckoutPageClient() {
 
       setCartErrorMessage("");
 
-      const response = await fetch(`${API_BASE_URL}/api/cart`, {
+      const response = await fetch(`${getStorefrontApiBaseUrl()}/api/cart`, {
         method: "PATCH",
 
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
-          "X-Tenant-Id": TENANT_ID,
+          ...getStorefrontTenantHeaders(),
         },
 
         body: JSON.stringify({
@@ -1180,13 +1229,13 @@ export default function CheckoutPageClient() {
 
       setCartErrorMessage("");
 
-      const response = await fetch(`${API_BASE_URL}/api/cart`, {
+      const response = await fetch(`${getStorefrontApiBaseUrl()}/api/cart`, {
         method: "DELETE",
 
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
-          "X-Tenant-Id": TENANT_ID,
+          ...getStorefrontTenantHeaders(),
         },
 
         body: JSON.stringify({
@@ -1432,13 +1481,13 @@ export default function CheckoutPageClient() {
       setIsOrderSubmitting(true);
       setOrderErrorMessage("");
 
-      const orderResponse = await fetch(`${API_BASE_URL}/api/orders`, {
+      const orderResponse = await fetch(`${getStorefrontApiBaseUrl()}/api/orders`, {
         method: "POST",
 
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
-          "X-Tenant-Id": TENANT_ID,
+          ...getStorefrontTenantHeaders(),
         },
 
         body: JSON.stringify({

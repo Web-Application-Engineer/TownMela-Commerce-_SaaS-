@@ -14,6 +14,10 @@ const Product = require(
   "../../models/product"
 );
 
+const StockClearanceCampaign = require(
+  "../../models/StockClearanceCampaign"
+);
+
 const HomepageBanner = require(
   "../../models/HomepageBanner"
 );
@@ -626,6 +630,7 @@ const copyMasterTemplateToTenant =
     const copySummary = {
       categories: 0,
       products: 0,
+      stockClearanceCampaigns: 0,
       homepageBanners: 0,
       homepageCategoryShowcases: 0,
       popularCategories: 0,
@@ -747,10 +752,13 @@ const copyMasterTemplateToTenant =
           "#111827",
 
         /*
-         * Keep the new tenant's own store title.
+         * New tenants start with the exact TownMela master
+         * storefront branding snapshot.
          */
         storeTitle:
-          destinationTenant.storeName,
+          masterBranding.storeTitle ||
+          masterTenant.storeName ||
+          "",
 
         storeTagline:
           masterBranding.storeTagline ||
@@ -1185,6 +1193,12 @@ const copyMasterTemplateToTenant =
 
                 tenant:
                   newTenantId,
+
+                // Preserve master category ordering for copied tenants.
+                createdAt:
+                  category.createdAt,
+                updatedAt:
+                  category.updatedAt,
               })
             ),
             {
@@ -1349,6 +1363,9 @@ const copyMasterTemplateToTenant =
         );
       }
 
+      const productIdMap =
+        new Map();
+
       const productDocuments =
         masterProducts
           .map((product) => {
@@ -1401,11 +1418,150 @@ const copyMasterTemplateToTenant =
         copySummary.products =
           copiedProducts.length;
 
+        /*
+         * Build master-product -> copied-product ID mapping.
+         * Stock Clearance uses product references, so those
+         * references must point to the new tenant's own products.
+         */
+        const sourceProductBySlug =
+          new Map(
+            masterProducts.map(
+              (product) => [
+                String(
+                  product.slug || ""
+                ),
+                product,
+              ]
+            )
+          );
+
+        copiedProducts.forEach(
+          (
+            copiedProduct,
+            index
+          ) => {
+            const sourceProduct =
+              sourceProductBySlug.get(
+                String(
+                  copiedProduct.slug ||
+                    ""
+                )
+              ) ||
+              masterProducts[index];
+
+            if (sourceProduct) {
+              productIdMap.set(
+                String(
+                  sourceProduct._id
+                ),
+                copiedProduct._id
+              );
+            }
+          }
+        );
+
         logCopyStep(
           "Products copied",
           {
             count:
               copiedProducts.length,
+          }
+        );
+      }
+
+      /* =====================================================
+         COPY STOCK CLEARANCE CAMPAIGN
+      ===================================================== */
+
+      currentStage =
+        "load_master_stock_clearance_campaign";
+
+      const masterStockClearanceCampaign =
+        await StockClearanceCampaign.findOne({
+          tenant: masterTenantId,
+        }).lean();
+
+      currentStage =
+        "check_destination_stock_clearance_campaign";
+
+      const existingStockClearanceCampaignCount =
+        await StockClearanceCampaign.countDocuments({
+          tenant: newTenantId,
+        });
+
+      if (
+        existingStockClearanceCampaignCount >
+        0
+      ) {
+        throw createProvisioningError(
+          "Destination tenant already contains stock clearance campaign data",
+          "DESTINATION_STOCK_CLEARANCE_DATA_EXISTS",
+          {
+            existingStockClearanceCampaignCount,
+          }
+        );
+      }
+
+      if (
+        masterStockClearanceCampaign
+      ) {
+        currentStage =
+          "copy_stock_clearance_campaign";
+
+        const remappedCampaignProducts =
+          (
+            Array.isArray(
+              masterStockClearanceCampaign.products
+            )
+              ? masterStockClearanceCampaign.products
+              : []
+          )
+            .map((productId) =>
+              productIdMap.get(
+                String(productId)
+              )
+            )
+            .filter(Boolean);
+
+        const stockClearanceDocument = {
+          ...removeDocumentFields(
+            masterStockClearanceCampaign
+          ),
+
+          tenant:
+            newTenantId,
+
+          products:
+            remappedCampaignProducts,
+
+          /*
+           * Never copy the master tenant's admin/user reference.
+           */
+          updatedBy:
+            null,
+        };
+
+        await StockClearanceCampaign.create(
+          stockClearanceDocument
+        );
+
+        copySummary.stockClearanceCampaigns =
+          1;
+
+        logCopyStep(
+          "Stock clearance campaign copied",
+          {
+            count: 1,
+
+            products:
+              remappedCampaignProducts.length,
+
+            masterProducts:
+              Array.isArray(
+                masterStockClearanceCampaign.products
+              )
+                ? masterStockClearanceCampaign.products.length
+                : 0,
           }
         );
       }
@@ -1800,6 +1956,10 @@ const removeTenantTemplateData =
 
     const cleanupTasks = [
       Product.deleteMany({
+        tenant: tenantId,
+      }),
+
+      StockClearanceCampaign.deleteMany({
         tenant: tenantId,
       }),
 

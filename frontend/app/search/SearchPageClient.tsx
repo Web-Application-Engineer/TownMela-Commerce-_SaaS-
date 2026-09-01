@@ -133,16 +133,39 @@ export default function SearchPageClient() {
            * Public storefront search should not depend on
            * admin authentication or selectedTenantId.
            */
-          if (TENANT_ID) {
+          const currentHostname =
+            typeof window !== "undefined"
+              ? window.location.hostname
+              : "";
+
+          const isLocalRequest =
+            [
+              "localhost",
+              "127.0.0.1",
+              "::1",
+            ].includes(
+              currentHostname,
+            );
+
+          if (
+            isLocalRequest &&
+            TENANT_ID
+          ) {
             headers[
               "X-Tenant-Id"
             ] =
               TENANT_ID;
           }
 
+          const searchApiBaseUrl =
+            typeof window !== "undefined" &&
+            !isLocalRequest
+              ? window.location.origin
+              : API_BASE_URL;
+
           const response =
             await fetch(
-              `${API_BASE_URL}/api/products/search?keyword=${encodeURIComponent(
+              `${searchApiBaseUrl}/api/products/search?keyword=${encodeURIComponent(
                 keyword,
               )}`,
               {
@@ -499,6 +522,20 @@ export default function SearchPageClient() {
                 className="lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4"
               />
             </div>
+          )}
+
+          {keyword && products.length > 0 && (
+            <div
+              aria-hidden="true"
+              data-social-contact-safe-area="true"
+              className="
+                h-[132px]
+                w-full
+                shrink-0
+                md:h-[96px]
+                lg:h-0
+              "
+            />
           )}
         </div>
       </section>

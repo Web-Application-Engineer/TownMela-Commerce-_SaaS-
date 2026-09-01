@@ -252,13 +252,30 @@ export default function Hero({
           setIsLoadingBanners(true);
           setBannerLoadError("");
 
+const currentHostname =
+  typeof window !== "undefined"
+    ? window.location.hostname
+    : "";
+
+const isLocalRequest = [
+  "localhost",
+  "127.0.0.1",
+  "::1",
+].includes(currentHostname);
+
+const bannerApiBaseUrl =
+  typeof window !== "undefined" &&
+  !isLocalRequest
+    ? window.location.origin
+    : API_URL;
+
 const response = await fetch(
-  `${API_URL}/api/homepage-banners?active=true`,
+  `${bannerApiBaseUrl}/api/homepage-banners?active=true`,
   {
     method: "GET",
     headers: {
       Accept: "application/json",
-      ...(TENANT_ID
+      ...(isLocalRequest && TENANT_ID
         ? {
             "X-Tenant-Id":
               TENANT_ID,

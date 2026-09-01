@@ -169,12 +169,17 @@ async function fetchShopData(
        * We intentionally do NOT use cache: "no-store" here so the
        * browser can honor the short tenant-aware backend cache.
        */
+      const storefrontApiBaseUrl =
+        typeof window !== "undefined"
+          ? window.location.origin
+          : API_BASE_URL;
+
       const [
         productsResponse,
         categoriesResponse,
       ] = await Promise.all([
         fetch(
-          `${API_BASE_URL}/api/products?storefront=shop`,
+          `${storefrontApiBaseUrl}/api/products?storefront=shop`,
           {
             method: "GET",
             headers,
@@ -184,7 +189,7 @@ async function fetchShopData(
         ),
 
         fetch(
-          `${API_BASE_URL}/api/categories`,
+          `${storefrontApiBaseUrl}/api/categories`,
           {
             method: "GET",
             headers,

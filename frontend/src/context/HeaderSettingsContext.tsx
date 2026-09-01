@@ -171,16 +171,39 @@ export function HeaderSettingsProvider({
          * On live tenant domains this header can stay absent
          * and resolvePublicTenant can use the current host.
          */
-        if (DEFAULT_TENANT_ID) {
+        const currentHostname =
+          typeof window !== "undefined"
+            ? window.location.hostname
+            : "";
+
+        const isLocalRequest =
+          [
+            "localhost",
+            "127.0.0.1",
+            "::1",
+          ].includes(
+            currentHostname,
+          );
+
+        if (
+          isLocalRequest &&
+          DEFAULT_TENANT_ID
+        ) {
           headers[
             "X-Tenant-Id"
           ] =
             DEFAULT_TENANT_ID;
         }
 
+        const headerApiBaseUrl =
+          typeof window !== "undefined" &&
+          !isLocalRequest
+            ? window.location.origin
+            : API_BASE_URL;
+
         const response =
           await fetch(
-            `${API_BASE_URL}/api/header-settings/public`,
+            `${headerApiBaseUrl}/api/header-settings/public`,
             {
               method: "GET",
 

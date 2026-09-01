@@ -719,8 +719,28 @@ export default function ProductDetailsClient({
         setIsAdded(false);
       }
 
+      const currentHostname =
+        typeof window !== "undefined"
+          ? window.location.hostname
+          : "";
+
+      const isLocalRequest =
+        [
+          "localhost",
+          "127.0.0.1",
+          "::1",
+        ].includes(
+          currentHostname
+        );
+
+      const cartApiBaseUrl =
+        typeof window !== "undefined" &&
+        !isLocalRequest
+          ? window.location.origin
+          : API_BASE_URL;
+
       const response = await fetch(
-        `${API_BASE_URL}/api/cart`,
+        `${cartApiBaseUrl}/api/cart`,
         {
           method: "POST",
 
@@ -728,7 +748,12 @@ export default function ProductDetailsClient({
             Accept: "application/json",
             "Content-Type":
               "application/json",
-            "X-Tenant-Id": TENANT_ID,
+            ...(isLocalRequest && TENANT_ID
+              ? {
+                  "X-Tenant-Id":
+                    TENANT_ID,
+                }
+              : {}),
           },
 
           body: JSON.stringify({

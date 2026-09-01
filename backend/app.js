@@ -5,6 +5,7 @@ require("dotenv").config();
 const crypto = require("crypto");
 const express = require("express");
 const cors = require("cors");
+const Tenant = require("./models/tenantModel");
 
 /* =========================================================
    ROUTE IMPORTS
@@ -314,15 +315,84 @@ app.use(
         );
       }
 
-      const error = new Error(
-        "Request origin is not allowed by CORS"
-      );
+      let requestHostname = "";
 
-      error.statusCode = 403;
-      error.code =
-        "CORS_ORIGIN_NOT_ALLOWED";
+      try {
+        requestHostname =
+          new URL(
+            normalizedRequestOrigin
+          )
+            .hostname
+            .toLowerCase()
+            .replace(
+              /^www\./,
+              ""
+            );
+      } catch {
+        requestHostname = "";
+      }
 
-      return callback(error);
+      if (!requestHostname) {
+        const error = new Error(
+          "Request origin is not allowed by CORS"
+        );
+
+        error.statusCode = 403;
+        error.code =
+          "CORS_ORIGIN_NOT_ALLOWED";
+
+        return callback(error);
+      }
+
+      /*
+       * Automatically allow active tenant custom domains.
+       * This makes CORS work for both existing and future
+       * tenant storefront domains without manual .env edits.
+       */
+      Tenant.findOne({
+        customDomain: {
+          $in: [
+            requestHostname,
+            `www.${requestHostname}`,
+          ],
+        },
+        status: "active",
+      })
+        .select("_id")
+        .lean()
+        .then((tenant) => {
+          if (tenant) {
+            return callback(
+              null,
+              true
+            );
+          }
+
+          const error =
+            new Error(
+              "Request origin is not allowed by CORS"
+            );
+
+          error.statusCode =
+            403;
+
+          error.code =
+            "CORS_ORIGIN_NOT_ALLOWED";
+
+          return callback(
+            error
+          );
+        })
+        .catch((error) => {
+          console.error(
+            "Tenant CORS lookup error:",
+            error
+          );
+
+          return callback(
+            error
+          );
+        });
     },
 
     credentials: true,

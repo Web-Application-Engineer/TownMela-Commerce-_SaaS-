@@ -49,16 +49,39 @@ export default function StockClearanceHeroTimer() {
               "application/json",
           };
 
-          if (TENANT_ID) {
+          const currentHostname =
+            typeof window !== "undefined"
+              ? window.location.hostname
+              : "";
+
+          const isLocalRequest =
+            [
+              "localhost",
+              "127.0.0.1",
+              "::1",
+            ].includes(
+              currentHostname,
+            );
+
+          if (
+            isLocalRequest &&
+            TENANT_ID
+          ) {
             headers[
               "X-Tenant-Id"
             ] =
               TENANT_ID;
           }
 
+          const stockClearanceApiBaseUrl =
+            typeof window !== "undefined" &&
+            !isLocalRequest
+              ? window.location.origin
+              : API_BASE_URL;
+
           const response =
             await fetch(
-              `${API_BASE_URL}/api/stock-clearance`,
+              `${stockClearanceApiBaseUrl}/api/stock-clearance`,
               {
                 method:
                   "GET",

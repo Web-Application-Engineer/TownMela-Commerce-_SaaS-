@@ -374,9 +374,14 @@ export function FooterSettingsProvider({
       try {
         setIsLoading(true);
 
+        const footerApiBaseUrl =
+          typeof window !== "undefined"
+            ? window.location.origin
+            : API_BASE_URL;
+
         const response =
           await fetch(
-            `${API_BASE_URL}/api/footer-settings/public`,
+            `${footerApiBaseUrl}/api/footer-settings/public`,
             {
               method: "GET",
 

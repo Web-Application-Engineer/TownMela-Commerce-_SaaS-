@@ -1291,7 +1291,7 @@ const createTenant =
         },
 
         {
-          $set: {
+          $setOnInsert: {
             businessName:
               storeName,
 
