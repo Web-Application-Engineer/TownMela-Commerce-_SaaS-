@@ -1367,16 +1367,47 @@ const copyMasterTemplateToTenant =
         new Map();
 
       const productDocuments =
-        masterProducts
-          .map((product) => {
-            const mappedCategoryId =
-              remapCategoryId(
-                product.category,
-                categoryIdMap
+        masterProducts.map(
+          (product) => {
+            const hasSourceCategory =
+              Boolean(
+                product.category
               );
 
-            if (!mappedCategoryId) {
-              return null;
+            const mappedCategoryId =
+              hasSourceCategory
+                ? remapCategoryId(
+                    product.category,
+                    categoryIdMap
+                  )
+                : null;
+
+            /*
+             * A real category reference must always map to the
+             * copied tenant category. If it does not, fail loudly
+             * instead of silently dropping the product.
+             *
+             * Legacy master products with category:null are kept
+             * exactly as they are.
+             */
+            if (
+              hasSourceCategory &&
+              !mappedCategoryId
+            ) {
+              throw createProvisioningError(
+                `Unable to map category for product "${product.name || product.slug || product._id}"`,
+                "PRODUCT_CATEGORY_MAPPING_FAILED",
+                {
+                  productId:
+                    String(
+                      product._id
+                    ),
+                  categoryId:
+                    String(
+                      product.category
+                    ),
+                }
+              );
             }
 
             return {
@@ -1389,9 +1420,16 @@ const copyMasterTemplateToTenant =
 
               category:
                 mappedCategoryId,
+
+              // Preserve master storefront product ordering.
+              createdAt:
+                product.createdAt,
+
+              updatedAt:
+                product.updatedAt,
             };
-          })
-          .filter(Boolean);
+          }
+        );
 
       if (
         productDocuments.length > 0
@@ -1407,13 +1445,66 @@ const copyMasterTemplateToTenant =
           }
         );
 
-        const copiedProducts =
-          await Product.insertMany(
-            productDocuments,
-            {
-              ordered: true,
-            }
+        const normalProductDocuments =
+          productDocuments.filter(
+            (product) =>
+              Boolean(
+                product.category
+              )
           );
+
+        const legacyProductDocuments =
+          productDocuments.filter(
+            (product) =>
+              !product.category
+          );
+
+        const copiedProducts = [];
+
+        if (
+          normalProductDocuments.length >
+          0
+        ) {
+          const insertedProducts =
+            await Product.insertMany(
+              normalProductDocuments,
+              {
+                ordered: true,
+              }
+            );
+
+          copiedProducts.push(
+            ...insertedProducts
+          );
+        }
+
+        /*
+         * Some legacy master products were created before category
+         * became required and therefore legitimately have category:null.
+         * Preserve those records without weakening the Product schema
+         * for new products.
+         */
+        for (
+          const legacyProductDocument
+          of legacyProductDocuments
+        ) {
+          const legacyProduct =
+            new Product(
+              legacyProductDocument
+            );
+
+          await legacyProduct.save({
+            validateBeforeSave:
+              false,
+
+            timestamps:
+              false,
+          });
+
+          copiedProducts.push(
+            legacyProduct
+          );
+        }
 
         copySummary.products =
           copiedProducts.length;
