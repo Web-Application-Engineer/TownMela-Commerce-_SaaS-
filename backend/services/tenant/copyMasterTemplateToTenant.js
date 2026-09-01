@@ -2023,22 +2023,132 @@ const copyMasterTemplateToTenant =
         );
       }
 
+      const referencedPopularCategoryIds =
+        [
+          ...new Set(
+            masterPopularCategories
+              .filter(
+                (popularCategory) =>
+                  Boolean(
+                    popularCategory.category
+                  )
+              )
+              .map(
+                (popularCategory) =>
+                  String(
+                    popularCategory.category
+                  )
+              )
+          ),
+        ];
+
+      const referencedPopularCategories =
+        referencedPopularCategoryIds.length >
+        0
+          ? await Category.find({
+              _id: {
+                $in:
+                  referencedPopularCategoryIds,
+              },
+            })
+              .select(
+                "_id +tenant"
+              )
+              .lean()
+          : [];
+
+      const sourcePopularCategoryById =
+        new Map(
+          referencedPopularCategories.map(
+            (category) => [
+              String(
+                category._id
+              ),
+              category,
+            ]
+          )
+        );
+
       const popularCategoryDocuments =
         masterPopularCategories
           .map(
             (
               popularCategory
             ) => {
-              const mappedCategoryId =
-                remapCategoryId(
-                  popularCategory.category,
-                  categoryIdMap
+              const hasSourceCategory =
+                Boolean(
+                  popularCategory.category
                 );
 
+              const mappedCategoryId =
+                hasSourceCategory
+                  ? remapCategoryId(
+                      popularCategory.category,
+                      categoryIdMap
+                    )
+                  : null;
+
               if (
+                hasSourceCategory &&
                 !mappedCategoryId
               ) {
-                return null;
+                const sourceCategory =
+                  sourcePopularCategoryById.get(
+                    String(
+                      popularCategory.category
+                    )
+                  );
+
+                /*
+                 * Missing source category = legacy orphan reference.
+                 * The PopularCategory snapshot fields still contain
+                 * categoryName, slug and thumbnail, so preserve it
+                 * with category:null.
+                 */
+                if (!sourceCategory) {
+                  // Keep mappedCategoryId as null.
+                } else if (
+                  String(
+                    sourceCategory.tenant
+                  ) !==
+                  String(
+                    masterTenantId
+                  )
+                ) {
+                  throw createProvisioningError(
+                    `Cross-tenant category reference found in popular category "${popularCategory.categoryName || popularCategory.slug || popularCategory._id}"`,
+                    "POPULAR_CATEGORY_CROSS_TENANT",
+                    {
+                      popularCategoryId:
+                        String(
+                          popularCategory._id
+                        ),
+                      categoryId:
+                        String(
+                          popularCategory.category
+                        ),
+                      categoryTenantId:
+                        String(
+                          sourceCategory.tenant
+                        ),
+                    }
+                  );
+                } else {
+                  throw createProvisioningError(
+                    `Unable to map category for popular category "${popularCategory.categoryName || popularCategory.slug || popularCategory._id}"`,
+                    "POPULAR_CATEGORY_MAPPING_FAILED",
+                    {
+                      popularCategoryId:
+                        String(
+                          popularCategory._id
+                        ),
+                      categoryId:
+                        String(
+                          popularCategory.category
+                        ),
+                    }
+                  );
+                }
               }
 
               return {
@@ -2051,10 +2161,15 @@ const copyMasterTemplateToTenant =
 
                 category:
                   mappedCategoryId,
+
+                createdAt:
+                  popularCategory.createdAt,
+
+                updatedAt:
+                  popularCategory.updatedAt,
               };
             }
-          )
-          .filter(Boolean);
+          );
 
       if (
         popularCategoryDocuments.length >
@@ -2071,13 +2186,65 @@ const copyMasterTemplateToTenant =
           }
         );
 
-        const copiedPopularCategories =
-          await PopularCategory.insertMany(
-            popularCategoryDocuments,
-            {
-              ordered: true,
-            }
+        const normalPopularCategoryDocuments =
+          popularCategoryDocuments.filter(
+            (popularCategory) =>
+              Boolean(
+                popularCategory.category
+              )
           );
+
+        const legacyPopularCategoryDocuments =
+          popularCategoryDocuments.filter(
+            (popularCategory) =>
+              !popularCategory.category
+          );
+
+        const copiedPopularCategories = [];
+
+        if (
+          normalPopularCategoryDocuments.length >
+          0
+        ) {
+          const insertedPopularCategories =
+            await PopularCategory.insertMany(
+              normalPopularCategoryDocuments,
+              {
+                ordered: true,
+              }
+            );
+
+          copiedPopularCategories.push(
+            ...insertedPopularCategories
+          );
+        }
+
+        /*
+         * Legacy orphan PopularCategory records still contain
+         * categoryName, slug and thumbnail snapshot data.
+         * Preserve them without weakening the schema globally.
+         */
+        for (
+          const legacyPopularCategoryDocument
+          of legacyPopularCategoryDocuments
+        ) {
+          const legacyPopularCategory =
+            new PopularCategory(
+              legacyPopularCategoryDocument
+            );
+
+          await legacyPopularCategory.save({
+            validateBeforeSave:
+              false,
+
+            timestamps:
+              false,
+          });
+
+          copiedPopularCategories.push(
+            legacyPopularCategory
+          );
+        }
 
         copySummary.popularCategories =
           copiedPopularCategories.length;
