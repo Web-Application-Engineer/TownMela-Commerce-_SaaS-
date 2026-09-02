@@ -198,9 +198,16 @@ const getActiveTenantId = () => {
   return "";
 };
 
-const getAdminHeaders = () => {
+const getAdminHeaders = (tenantIdOverride = "") => {
   const token = getAdminToken();
-  const tenantId = getActiveTenantId();
+
+  const normalizedTenantId =
+    tenantIdOverride.trim();
+
+  const tenantId =
+    isValidTenantId(normalizedTenantId)
+      ? normalizedTenantId
+      : getActiveTenantId();
 
   return {
     Accept: "application/json",
@@ -640,7 +647,7 @@ export default function HomepageManagementClient() {
 
       const response = await fetch(`${API_URL}/homepage-banners`, {
         method: "GET",
-        headers: getAdminHeaders(),
+        headers: getAdminHeaders(selectedTenantId),
         cache: "no-store",
         signal,
       });
@@ -714,7 +721,7 @@ export default function HomepageManagementClient() {
 
         const response = await fetch(`${API_URL}/categories?status=true`, {
           method: "GET",
-          headers: getAdminHeaders(),
+          headers: getAdminHeaders(selectedTenantId),
           cache: "no-store",
           signal: controller.signal,
         });
@@ -790,7 +797,7 @@ export default function HomepageManagementClient() {
 
       const response = await fetch(`${API_URL}/popular-categories`, {
         method: "GET",
-        headers: getAdminHeaders(),
+        headers: getAdminHeaders(selectedTenantId),
         cache: "no-store",
         signal,
       });
@@ -872,7 +879,7 @@ export default function HomepageManagementClient() {
 
       const response = await fetch(`${API_URL}/homepage-category-showcases`, {
         method: "GET",
-        headers: getAdminHeaders(),
+        headers: getAdminHeaders(selectedTenantId),
         cache: "no-store",
         signal,
       });
@@ -933,7 +940,7 @@ export default function HomepageManagementClient() {
         `${API_URL}/homepage-product-section-settings`,
         {
           method: "GET",
-          headers: getAdminHeaders(),
+          headers: getAdminHeaders(selectedTenantId),
           cache: "no-store",
           signal,
         },
@@ -1018,7 +1025,7 @@ export default function HomepageManagementClient() {
 
       const response = await fetch(endpoint, {
         method: isExistingBanner ? "PUT" : "POST",
-        headers: getAdminHeaders(),
+        headers: getAdminHeaders(selectedTenantId),
         body: JSON.stringify({
           title,
           image,
@@ -1067,7 +1074,7 @@ export default function HomepageManagementClient() {
 
       const response = await fetch(`${API_URL}/homepage-banners/${bannerId}`, {
         method: "DELETE",
-        headers: getAdminHeaders(),
+        headers: getAdminHeaders(selectedTenantId),
       });
 
       const data = await readJsonResponse<HomepageBannersApiResponse>(response);
@@ -1273,7 +1280,7 @@ export default function HomepageManagementClient() {
 
     const response = await fetch(endpoint, {
       method: isExistingCategory ? "PUT" : "POST",
-      headers: getAdminHeaders(),
+      headers: getAdminHeaders(selectedTenantId),
       body: JSON.stringify({
         categoryId,
         order: Math.max(1, Number(updatedCategory.order) || 1),
@@ -1315,7 +1322,7 @@ export default function HomepageManagementClient() {
       `${API_URL}/popular-categories/${categoryId}`,
       {
         method: "DELETE",
-        headers: getAdminHeaders(),
+        headers: getAdminHeaders(selectedTenantId),
       },
     );
 
@@ -1339,7 +1346,7 @@ export default function HomepageManagementClient() {
       `${API_URL}/homepage-category-showcases`,
       {
         method: "PUT",
-        headers: getAdminHeaders(),
+        headers: getAdminHeaders(selectedTenantId),
         body: JSON.stringify(
           convertAdminDataToPayload(nextShowcases),
         ),
@@ -1679,7 +1686,7 @@ export default function HomepageManagementClient() {
         `${API_URL}/homepage-product-section-settings`,
         {
           method: "PUT",
-          headers: getAdminHeaders(),
+          headers: getAdminHeaders(selectedTenantId),
           body: JSON.stringify({
             sections: normalized.productSections.map(
               (section, index) => ({

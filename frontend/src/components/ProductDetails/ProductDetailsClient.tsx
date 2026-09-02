@@ -390,14 +390,32 @@ export default function ProductDetailsClient({
     const loadCheckoutSettings =
       async () => {
         try {
+          const currentHostname =
+            typeof window !== "undefined"
+              ? window.location.hostname
+              : "";
+
+          const isLocalRequest =
+            [
+              "localhost",
+              "127.0.0.1",
+              "::1",
+            ].includes(currentHostname);
+
+          const checkoutApiBaseUrl =
+            typeof window !== "undefined" &&
+            !isLocalRequest
+              ? window.location.origin
+              : API_BASE_URL;
+
           const response = await fetch(
-            `${API_BASE_URL}/api/checkout-settings`,
+            `${checkoutApiBaseUrl}/api/checkout-settings`,
             {
               method: "GET",
               cache: "no-store",
               headers: {
                 Accept: "application/json",
-                ...(TENANT_ID
+                ...(isLocalRequest && TENANT_ID
                   ? {
                       "X-Tenant-Id":
                         TENANT_ID,
@@ -2018,7 +2036,7 @@ export default function ProductDetailsClient({
                       </p>
 
                       <p className="mt-1 text-xs leading-5 text-gray-500">
-                        All over Bangladesh
+                        {checkoutSettings.deliveryArea}
                       </p>
                     </div>
                   </div>
@@ -2052,7 +2070,7 @@ export default function ProductDetailsClient({
                       </p>
 
                       <p className="mt-1 text-xs leading-5 text-gray-500">
-                        COD service available
+                        {checkoutSettings.codText}
                       </p>
                     </div>
                   </div>
@@ -2069,7 +2087,7 @@ export default function ProductDetailsClient({
                       </p>
 
                       <p className="mt-1 text-xs leading-5 text-gray-500">
-                        Store pickup option can be added later
+                        {checkoutSettings.collectionPoint}
                       </p>
                     </div>
                   </div>
@@ -2096,7 +2114,7 @@ export default function ProductDetailsClient({
                       </p>
 
                       <p className="mt-1 text-xs text-gray-500">
-                        Quality checked item
+                        {checkoutSettings.warrantyText}
                       </p>
                     </div>
                   </div>
@@ -2113,7 +2131,7 @@ export default function ProductDetailsClient({
                       </p>
 
                       <p className="mt-1 text-xs text-gray-500">
-                        Easy return process
+                        {checkoutSettings.returnPolicy}
                       </p>
                     </div>
                   </div>

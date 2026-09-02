@@ -34,6 +34,9 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ??
   "http://localhost:5000";
 
+const TENANT_ID =
+  process.env.NEXT_PUBLIC_TENANT_ID ?? "";
+
 const CHECKOUT_CART_SNAPSHOT_KEY =
   "townmela_checkout_cart_snapshot";
 
@@ -295,15 +298,39 @@ export function useProductActions(
       async (
         guestId: string,
       ) => {
+        const currentHostname =
+          typeof window !== "undefined"
+            ? window.location.hostname
+            : "";
+
+        const isLocalRequest =
+          [
+            "localhost",
+            "127.0.0.1",
+            "::1",
+          ].includes(currentHostname);
+
+        const cartApiBaseUrl =
+          typeof window !== "undefined" &&
+          !isLocalRequest
+            ? window.location.origin
+            : API_BASE_URL;
+
         const response =
           await fetch(
-            `${API_BASE_URL}/api/cart`,
+            `${cartApiBaseUrl}/api/cart`,
             {
               method: "POST",
 
               headers: {
                 "Content-Type":
                   "application/json",
+                ...(isLocalRequest && TENANT_ID
+                  ? {
+                      "X-Tenant-Id":
+                        TENANT_ID,
+                    }
+                  : {}),
               },
 
               body: JSON.stringify({

@@ -17,6 +17,14 @@ const {
   "../middleware/authMiddleware"
 );
 
+const requireTenant = require(
+  "../middleware/requireTenant"
+);
+
+const resolvePublicTenant = require(
+  "../middleware/resolvePublicTenant"
+);
+
 const router =
   express.Router();
 
@@ -37,6 +45,7 @@ const router =
  */
 router.get(
   "/",
+  resolvePublicTenant,
   getCheckoutSettings
 );
 
@@ -53,6 +62,7 @@ router.get(
 router.patch(
   "/",
   protect,
+  requireTenant,
   adminOnly,
   updateCheckoutSettings
 );

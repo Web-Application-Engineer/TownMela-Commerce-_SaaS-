@@ -46,6 +46,49 @@ const API_BASE_URL =
 const TENANT_ID =
   process.env.NEXT_PUBLIC_TENANT_ID ?? "";
 
+function getStorefrontApiBaseUrl() {
+  const currentHostname =
+    typeof window !== "undefined"
+      ? window.location.hostname
+      : "";
+
+  const isLocalRequest =
+    [
+      "localhost",
+      "127.0.0.1",
+      "::1",
+    ].includes(currentHostname);
+
+  return (
+    typeof window !== "undefined" &&
+    !isLocalRequest
+      ? window.location.origin
+      : API_BASE_URL
+  );
+}
+
+function getStorefrontTenantHeaders(): Record<string, string> {
+  const currentHostname =
+    typeof window !== "undefined"
+      ? window.location.hostname
+      : "";
+
+  const isLocalRequest =
+    [
+      "localhost",
+      "127.0.0.1",
+      "::1",
+    ].includes(currentHostname);
+
+  return (
+    isLocalRequest && TENANT_ID
+      ? {
+          ...getStorefrontTenantHeaders(),
+        }
+      : {}
+  );
+}
+
 /* =========================================================
    TYPES
 ========================================================= */
@@ -311,7 +354,7 @@ export default function CartPageClient() {
         }
 
         const response = await fetch(
-          `${API_BASE_URL}/api/cart/${guestId}`,
+          `${getStorefrontApiBaseUrl()}/api/cart/${guestId}`,
           {
             method: "GET",
             cache: "no-store",
@@ -323,8 +366,7 @@ export default function CartPageClient() {
               "Content-Type":
                 "application/json",
 
-              "X-Tenant-Id":
-                TENANT_ID,
+              ...getStorefrontTenantHeaders(),
             },
           }
         );
@@ -470,7 +512,7 @@ export default function CartPageClient() {
         try {
           const response =
             await fetch(
-              `${API_BASE_URL}/api/products`,
+              `${getStorefrontApiBaseUrl()}/api/products`,
               {
                 method: "GET",
                 cache: "no-store",
@@ -482,8 +524,7 @@ export default function CartPageClient() {
                   "Content-Type":
                     "application/json",
 
-                  "X-Tenant-Id":
-                    TENANT_ID,
+                  ...getStorefrontTenantHeaders(),
                 },
               }
             );
@@ -638,7 +679,7 @@ export default function CartPageClient() {
       setErrorMessage("");
 
       const response = await fetch(
-        `${API_BASE_URL}/api/cart`,
+        `${getStorefrontApiBaseUrl()}/api/cart`,
         {
           method: "PATCH",
 
@@ -649,8 +690,7 @@ export default function CartPageClient() {
             "Content-Type":
               "application/json",
 
-            "X-Tenant-Id":
-              TENANT_ID,
+            ...getStorefrontTenantHeaders(),
           },
 
           body: JSON.stringify({
@@ -752,7 +792,7 @@ export default function CartPageClient() {
       setErrorMessage("");
 
       const response = await fetch(
-        `${API_BASE_URL}/api/cart`,
+        `${getStorefrontApiBaseUrl()}/api/cart`,
         {
           method: "DELETE",
 
@@ -763,8 +803,7 @@ export default function CartPageClient() {
             "Content-Type":
               "application/json",
 
-            "X-Tenant-Id":
-              TENANT_ID,
+            ...getStorefrontTenantHeaders(),
           },
 
           body: JSON.stringify({

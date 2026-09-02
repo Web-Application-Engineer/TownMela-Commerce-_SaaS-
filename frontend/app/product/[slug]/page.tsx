@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 
 import ProductDetailsClient from "../../../src/components/ProductDetails/ProductDetailsClient";
 
@@ -79,23 +80,90 @@ type ProductPageProps = {
 
 async function getProducts(): Promise<Product[]> {
   try {
-    if (!TENANT_ID) {
+    const requestHeaders =
+      await headers();
+
+    const forwardedHost =
+      requestHeaders
+        .get("x-forwarded-host")
+        ?.split(",")[0]
+        ?.trim() ?? "";
+
+    const host =
+      forwardedHost ||
+      requestHeaders
+        .get("host")
+        ?.trim() ||
+      "";
+
+    const normalizedHost =
+      host.toLowerCase();
+
+    const isLocalRequest =
+      !normalizedHost ||
+      normalizedHost.startsWith(
+        "localhost"
+      ) ||
+      normalizedHost.startsWith(
+        "127.0.0.1"
+      ) ||
+      normalizedHost.startsWith(
+        "[::1]"
+      ) ||
+      normalizedHost.startsWith(
+        "::1"
+      );
+
+    const forwardedProto =
+      requestHeaders
+        .get("x-forwarded-proto")
+        ?.split(",")[0]
+        ?.trim();
+
+    const protocol =
+      forwardedProto ||
+      (isLocalRequest
+        ? "http"
+        : "https");
+
+    const apiBaseUrl =
+      !isLocalRequest && host
+        ? `${protocol}://${host}`.replace(
+            /\/$/,
+            ""
+          )
+        : API_BASE_URL;
+
+    const tenantId =
+      isLocalRequest
+        ? TENANT_ID
+        : "";
+
+    if (
+      isLocalRequest &&
+      !tenantId
+    ) {
       console.error(
-        "NEXT_PUBLIC_TENANT_ID is missing."
+        "NEXT_PUBLIC_TENANT_ID is missing for local development."
       );
 
       return [];
     }
 
     const response = await fetch(
-      `${API_BASE_URL}/api/products`,
+      `${apiBaseUrl}/api/products`,
       {
         method: "GET",
         headers: {
           Accept: "application/json",
           "Content-Type":
             "application/json",
-          "X-Tenant-Id": TENANT_ID,
+          ...(tenantId
+            ? {
+                "X-Tenant-Id":
+                  tenantId,
+              }
+            : {}),
         },
         cache: "no-store",
       }

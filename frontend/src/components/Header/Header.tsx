@@ -250,9 +250,33 @@ export default function Header() {
           return;
         }
 
+        const currentHostname =
+          window.location.hostname;
+
+        const isLocalRequest =
+          [
+            "localhost",
+            "127.0.0.1",
+            "::1",
+          ].includes(
+            currentHostname,
+          );
+
+        const localTenantId =
+          (
+            process.env
+              .NEXT_PUBLIC_TENANT_ID ??
+            ""
+          ).trim();
+
+        const cartApiBaseUrl =
+          !isLocalRequest
+            ? window.location.origin
+            : API_BASE_URL;
+
         const response =
           await fetch(
-            `${API_BASE_URL}/api/cart/${guestId}`,
+            `${cartApiBaseUrl}/api/cart/${guestId}`,
             {
               method: "GET",
               cache: "no-store",
@@ -263,6 +287,14 @@ export default function Header() {
 
                 "Content-Type":
                   "application/json",
+
+                ...(isLocalRequest &&
+                localTenantId
+                  ? {
+                      "X-Tenant-Id":
+                        localTenantId,
+                    }
+                  : {}),
               },
             },
           );
@@ -396,7 +428,37 @@ export default function Header() {
     void fetchCartCount();
 
     const handleCartUpdated =
-      () => {
+      (event: Event) => {
+        const customEvent =
+          event as CustomEvent<{
+            cart?: {
+              items?: Array<{
+                quantity?: number;
+              }>;
+            };
+          }>;
+
+        const eventItems =
+          customEvent.detail?.cart?.items;
+
+        if (Array.isArray(eventItems)) {
+          const totalQuantity =
+            eventItems.reduce(
+              (total, item) =>
+                total +
+                Number(
+                  item.quantity || 0,
+                ),
+              0,
+            );
+
+          setCartCount(
+            totalQuantity,
+          );
+
+          return;
+        }
+
         void fetchCartCount();
       };
 

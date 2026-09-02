@@ -34,6 +34,41 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ??
   "http://localhost:5000";
 
+const TENANT_ID =
+  process.env.NEXT_PUBLIC_TENANT_ID ?? "";
+
+function getCartRequestConfig() {
+  const currentHostname =
+    typeof window !== "undefined"
+      ? window.location.hostname
+      : "";
+
+  const isLocalRequest =
+    [
+      "localhost",
+      "127.0.0.1",
+      "::1",
+    ].includes(currentHostname);
+
+  const cartApiBaseUrl =
+    typeof window !== "undefined" &&
+    !isLocalRequest
+      ? window.location.origin
+      : API_BASE_URL;
+
+  const tenantHeaders: Record<string, string> =
+    isLocalRequest && TENANT_ID
+      ? {
+          "X-Tenant-Id": TENANT_ID,
+        }
+      : {};
+
+  return {
+    cartApiBaseUrl,
+    tenantHeaders,
+  };
+}
+
 /* =========================================================
    TYPES
 ========================================================= */
@@ -179,8 +214,13 @@ export default function CartDrawer() {
           );
         }
 
+        const {
+          cartApiBaseUrl,
+          tenantHeaders,
+        } = getCartRequestConfig();
+
         const response = await fetch(
-          `${API_BASE_URL}/api/cart/${guestId}`,
+          `${cartApiBaseUrl}/api/cart/${guestId}`,
           {
             method: "GET",
             cache: "no-store",
@@ -188,6 +228,7 @@ export default function CartDrawer() {
             headers: {
               "Content-Type":
                 "application/json",
+              ...tenantHeaders,
             },
           }
         );
@@ -305,14 +346,20 @@ export default function CartDrawer() {
 
       setErrorMessage("");
 
+      const {
+        cartApiBaseUrl,
+        tenantHeaders,
+      } = getCartRequestConfig();
+
       const response = await fetch(
-        `${API_BASE_URL}/api/cart`,
+        `${cartApiBaseUrl}/api/cart`,
         {
           method: "PATCH",
 
           headers: {
             "Content-Type":
               "application/json",
+            ...tenantHeaders,
           },
 
           body: JSON.stringify({
@@ -412,14 +459,20 @@ export default function CartDrawer() {
 
       setErrorMessage("");
 
+      const {
+        cartApiBaseUrl,
+        tenantHeaders,
+      } = getCartRequestConfig();
+
       const response = await fetch(
-        `${API_BASE_URL}/api/cart`,
+        `${cartApiBaseUrl}/api/cart`,
         {
           method: "DELETE",
 
           headers: {
             "Content-Type":
               "application/json",
+            ...tenantHeaders,
           },
 
           body: JSON.stringify({
